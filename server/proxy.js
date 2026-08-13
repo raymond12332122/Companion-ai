@@ -278,8 +278,8 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res, pathname);
 });
 
-server.listen(PORT, () => {
-  console.log("Companion app:  http://localhost:" + PORT);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log("Companion app:  http://0.0.0.0:" + PORT);
   console.log(
     CONFIG.apiKey
       ? "AI provider:    " + CONFIG.provider + " (" + CONFIG.model + ")"
