@@ -116,6 +116,11 @@ function sanitiseMessages(input) {
   return out;
 }
 
+function clampPenalty(value) {
+  if (typeof value !== "number" || !isFinite(value)) return undefined;
+  return Math.max(-2, Math.min(2, value));
+}
+
 async function callAnthropic(payload) {
   const url = CONFIG.apiUrl || DEFAULT_URLS.anthropic;
   const response = await fetch(url, {
@@ -149,18 +154,24 @@ async function callAnthropic(payload) {
 
 async function callOpenAiCompatible(payload) {
   const url = CONFIG.apiUrl || DEFAULT_URLS.openai;
+  const body = {
+    model: payload.model,
+    max_tokens: payload.maxTokens,
+    temperature: payload.temperature,
+    messages: [{ role: "system", content: payload.system }].concat(payload.messages)
+  };
+  // Repetition controls are OpenAI-format only, and some compatible endpoints
+  // reject unknown keys outright — so they're sent only when actually supplied.
+  if (typeof payload.presencePenalty === "number") body.presence_penalty = payload.presencePenalty;
+  if (typeof payload.frequencyPenalty === "number") body.frequency_penalty = payload.frequencyPenalty;
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: "Bearer " + CONFIG.apiKey
     },
-    body: JSON.stringify({
-      model: payload.model,
-      max_tokens: payload.maxTokens,
-      temperature: payload.temperature,
-      messages: [{ role: "system", content: payload.system }].concat(payload.messages)
-    })
+    body: JSON.stringify(body)
   });
 
   const data = await response.json().catch(() => null);
@@ -201,7 +212,11 @@ async function handleChat(req, res) {
     system: typeof body.system === "string" ? body.system.slice(0, 12000) : "",
     messages,
     maxTokens: Math.min(Number(body.maxTokens) || CONFIG.maxTokens, 1024),
-    temperature: typeof body.temperature === "number" ? body.temperature : 0.85
+    temperature: typeof body.temperature === "number" ? body.temperature : 0.85,
+    // Clamped to the range every OpenAI-compatible endpoint accepts. Anthropic
+    // has no equivalent, so callAnthropic simply ignores both.
+    presencePenalty: clampPenalty(body.presencePenalty),
+    frequencyPenalty: clampPenalty(body.frequencyPenalty)
   };
 
   try {

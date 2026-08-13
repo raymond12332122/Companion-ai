@@ -11,6 +11,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Pixel — Companion Workspace</title>
 <link rel="icon" href="assets/sprites/pixel-happy.svg" type="image/svg+xml">
+<!-- Claims /favicon.ico too, so the browser stops probing for one that isn't served. -->
+<link rel="shortcut icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect fill='%237c9cff' width='64' height='64' rx='14'/><text x='32' y='44' font-size='28' font-weight='bold' fill='%230e1020' text-anchor='middle'>^‿^</text></svg>">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%237c9cff' width='180' height='180' rx='40'/><text x='90' y='135' font-size='72' font-weight='bold' fill='%230e1020' text-anchor='middle'>^‿^</text></svg>">
 <style>
@@ -172,43 +174,127 @@
     background: rgba(255, 255, 255, .03);
   }
 
+  /* ---------------- Character stage ----------------
+   * The companion is present in the scene rather than sitting in the header as
+   * an avatar. Three nested elements, each owning exactly one thing, so they
+   * never fight:
+   *   .stage        the bounded scene (clips the character, catches pointers)
+   *   .stage__actor placement + size, driven by the Stage module (left/top/width)
+   *   .sprite       the mood animation, which owns `transform` exclusively
+   * Keeping placement off `transform` is what lets a dragged character keep
+   * bobbing. The sprite itself draws no background or border, so a transparent
+   * PNG reads as a character standing on the stage, not a picture in a box. */
+
+  .stage {
+    position: relative;
+    flex: none;
+    height: clamp(170px, 27dvh, 280px);
+    overflow: hidden;
+    border-bottom: 1px solid var(--line);
+    background:
+      radial-gradient(120% 85% at 50% 105%, rgba(124, 156, 255, .2), transparent 68%),
+      linear-gradient(180deg, rgba(9, 11, 26, .4), rgba(9, 11, 26, 0));
+    touch-action: none;
+  }
+  .stage__floor {
+    position: absolute; left: 50%; bottom: 7%;
+    width: 58%; height: 16px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, .5), transparent 72%);
+    pointer-events: none;
+  }
+  .stage__actor {
+    position: absolute;
+    left: 50%; top: 54%;
+    width: 150px;
+    aspect-ratio: 1 / 1;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .stage__actor.is-dragging { cursor: grabbing; }
+  .stage__actor.is-dragging .sprite { animation-play-state: paused; }
+
   .sprite {
     position: relative;
-    width: 66px; height: 66px; flex: none;
-    border-radius: 18px;
+    width: 100%; height: 100%;
     display: grid; place-items: center;
-    background: radial-gradient(circle at 50% 35%, rgba(124, 156, 255, .35), rgba(124, 156, 255, .06));
-    border: 1px solid var(--line);
-    overflow: hidden;
     animation: bob 4.5s ease-in-out infinite;
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    cursor: pointer;
+    pointer-events: none;              /* the actor owns the pointer, not the art */
   }
-  .sprite:hover {
-    transform: scale(1.12) translateY(-2px);
-    filter: brightness(1.25) drop-shadow(0 8px 16px rgba(124, 156, 255, .4));
+  .sprite__img {
+    display: block;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    object-position: center bottom;
+    -webkit-user-drag: none;
   }
-  .sprite:active { transform: scale(0.96); }
-  .sprite__img { display: block; width: 100%; height: 100%; object-fit: contain; }
   .sprite__fallback {
     display: grid; place-items: center;
-    width: 100%; height: 100%;
-    font-size: 1.15rem; font-weight: 700; letter-spacing: .5px;
+    width: 74%; height: 74%;
+    border-radius: 26px;
+    font-size: clamp(1.1rem, 5vw, 2rem); font-weight: 700; letter-spacing: .5px;
     color: #0e1020;
     background: linear-gradient(140deg, #9fb6ff, #d4c2ff);
     animation: pulse-fallback 2s ease-in-out infinite;
   }
-  .sprite[data-mood="happy"]       { box-shadow: inset 0 0 0 2px rgba(61, 220, 151, .45), 0 0 24px rgba(61, 220, 151, .35); animation: bob-bounce 4s ease-in-out infinite; }
-  .sprite[data-mood="sad"]         { box-shadow: inset 0 0 0 2px rgba(111, 143, 184, .45), 0 0 20px rgba(111, 143, 184, .2); animation: bob-droop 6s ease-in-out infinite; }
-  .sprite[data-mood="surprised"]   { box-shadow: inset 0 0 0 2px rgba(255, 183, 3, .45), 0 0 28px rgba(255, 183, 3, .4); animation: bob-pop 3s ease-in-out infinite; }
-  .sprite[data-mood="angry"]       { box-shadow: inset 0 0 0 2px rgba(239, 71, 111, .45), 0 0 20px rgba(239, 71, 111, .3); animation: bob-shake 2.5s ease-in-out infinite; }
-  .sprite[data-mood="thinking"]    { box-shadow: inset 0 0 0 2px rgba(155, 123, 255, .45), 0 0 22px rgba(155, 123, 255, .25); animation: bob-float 7s ease-in-out infinite; }
-  .sprite[data-mood="annoyed"]     { box-shadow: inset 0 0 0 2px rgba(224, 120, 79, .45), 0 0 18px rgba(224, 120, 79, .25); animation: bob-tap 3.5s ease-in-out infinite; }
-  .sprite[data-mood="embarrassed"] { box-shadow: inset 0 0 0 2px rgba(255, 107, 157, .45), 0 0 24px rgba(255, 107, 157, .32); animation: bob-wiggle 4s ease-in-out infinite; }
-  .sprite[data-mood="curious"]     { box-shadow: inset 0 0 0 2px rgba(6, 182, 212, .45), 0 0 28px rgba(6, 182, 212, .4); animation: bob-tilt 5s ease-in-out infinite; }
-  .sprite[data-mood="sleepy"]      { box-shadow: inset 0 0 0 2px rgba(122, 143, 166, .45), 0 0 15px rgba(122, 143, 166, .2); animation: bob-nod 8s ease-in-out infinite; }
-  .sprite[data-mood="excited"]     { box-shadow: inset 0 0 0 2px rgba(255, 111, 60, .45), 0 0 32px rgba(255, 111, 60, .4); animation: bob-jump 2.5s ease-in-out infinite; }
-  .sprite[data-mood="chaotic"]     { box-shadow: inset 0 0 0 2px rgba(168, 85, 247, .45), 0 0 28px rgba(168, 85, 247, .35); animation: bob-spin 3s ease-in-out infinite; }
+
+  /* Glow via drop-shadow, not box-shadow: it follows the artwork's alpha, so a
+   * cut-out character glows at its own silhouette instead of inside a rectangle. */
+  .sprite[data-mood="happy"]       { filter: drop-shadow(0 8px 24px rgba(61, 220, 151, .45));  animation: bob-bounce 4s ease-in-out infinite; }
+  .sprite[data-mood="sad"]         { filter: drop-shadow(0 8px 20px rgba(111, 143, 184, .38)); animation: bob-droop 6s ease-in-out infinite; }
+  .sprite[data-mood="surprised"]   { filter: drop-shadow(0 8px 26px rgba(255, 183, 3, .45));   animation: bob-pop 3s ease-in-out infinite; }
+  .sprite[data-mood="angry"]       { filter: drop-shadow(0 8px 22px rgba(239, 71, 111, .45));  animation: bob-shake 2.5s ease-in-out infinite; }
+  .sprite[data-mood="thinking"]    { filter: drop-shadow(0 8px 22px rgba(155, 123, 255, .4));  animation: bob-float 7s ease-in-out infinite; }
+  .sprite[data-mood="annoyed"]     { filter: drop-shadow(0 8px 20px rgba(224, 120, 79, .4));   animation: bob-tap 3.5s ease-in-out infinite; }
+  .sprite[data-mood="embarrassed"] { filter: drop-shadow(0 8px 24px rgba(255, 107, 157, .45)); animation: bob-wiggle 4s ease-in-out infinite; }
+  .sprite[data-mood="curious"]     { filter: drop-shadow(0 8px 26px rgba(6, 182, 212, .45));   animation: bob-tilt 5s ease-in-out infinite; }
+  .sprite[data-mood="sleepy"]      { filter: drop-shadow(0 8px 18px rgba(122, 143, 166, .35)); animation: bob-nod 8s ease-in-out infinite; }
+  .sprite[data-mood="excited"]     { filter: drop-shadow(0 8px 30px rgba(255, 111, 60, .5));   animation: bob-jump 2.5s ease-in-out infinite; }
+  .sprite[data-mood="chaotic"]     { filter: drop-shadow(0 8px 26px rgba(168, 85, 247, .45));  animation: bob-spin 3s ease-in-out infinite; }
+
+  .stage__toggle {
+    position: absolute; top: 8px; right: 8px; z-index: 3;
+    width: 34px; height: 34px;
+    display: grid; place-items: center;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: rgba(9, 11, 26, .68);
+    color: var(--muted);
+    font-size: .95rem;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+  }
+  .stage__toggle:hover { color: var(--text); border-color: rgba(124, 156, 255, .5); }
+  .stage__toggle[aria-expanded="true"] { color: var(--text); background: rgba(124, 156, 255, .28); }
+
+  .stage__panel {
+    position: absolute; top: 48px; right: 8px; z-index: 3;
+    width: min(230px, calc(100% - 16px));
+    display: grid; gap: 10px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(9, 11, 26, .92);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(8px);
+  }
+  .stage__panel label { display: grid; gap: 6px; font-size: .74rem; color: var(--muted); }
+  .stage__panel input[type="range"] { width: 100%; accent-color: var(--accent); height: 24px; }
+  .stage__hint { margin: 0; font-size: .7rem; color: var(--muted); line-height: 1.45; }
+  .stage__reset {
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .05);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: .78rem;
+    cursor: pointer;
+  }
+  .stage__reset:hover { background: rgba(124, 156, 255, .18); border-color: rgba(124, 156, 255, .5); }
 
   @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
   @keyframes pulse-fallback { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
@@ -224,6 +310,14 @@
   @keyframes bob-jump { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-12px) scale(1.1); } }
   @keyframes bob-spin { 0%, 100% { transform: rotate(0deg) translateY(0); } 50% { transform: rotate(6deg) translateY(-5px); } }
 
+  .companion__badge {
+    width: 34px; height: 34px; flex: none;
+    display: grid; place-items: center;
+    border-radius: 11px;
+    font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+    color: #0e1020;
+    background: linear-gradient(140deg, #9fb6ff, #d4c2ff);
+  }
   .companion__id { min-width: 0; flex: 1; }
   .companion__name { margin: 0; font-size: 1.02rem; font-weight: 700; }
   .companion__mood { margin: 2px 0 0; font-size: .78rem; color: var(--muted); }
@@ -400,9 +494,34 @@
 
   @media (max-width: 900px) {
     .app-shell { grid-template-columns: minmax(0, 1fr); }
-    .companion { position: static; max-height: none; order: -1; }
-    .chat { max-height: 58dvh; }
+    /* The companion becomes the screen on a phone: a fixed-height column where
+     * the stage keeps its slice and the chat takes whatever is left, so the
+     * character stays visible while typing and never pushes the composer off. */
+    /* --header-h is measured at runtime (syncViewportMetrics) because the
+     * header wraps to two rows on narrow screens; a hard-coded offset pushed
+     * the composer past the bottom of the viewport on small phones. */
+    .companion {
+      position: static;
+      order: -1;
+      height: calc(100dvh - var(--header-h, 96px) - 24px);
+      max-height: none;
+    }
+    .stage { height: clamp(150px, 26dvh, 240px); }
+    .chat { flex: 1; min-height: 0; max-height: none; }
     .msg__bubble { max-width: 88%; }
+  }
+
+  @media (max-width: 520px) {
+    /* Every row the header spends is a row the conversation loses. */
+    .app-header { padding: 12px 16px; gap: 10px; }
+    .brand__sub { display: none; }
+    .companion__header { gap: 10px; padding: 12px; }
+    .icon-btn { padding: 8px 9px; font-size: .72rem; }
+    .hints { font-size: .7rem; padding: 0 14px 8px; }
+  }
+
+  @media (max-height: 620px) and (max-width: 900px) {
+    .stage { height: 132px; }
   }
 
   /* ---------------- Character creator / first-run screen ---------------- */
@@ -722,11 +841,11 @@
       <h2>Hey — this is your workspace.</h2>
       <p>
         Notes, half-finished plans, and one companion parked in the chat panel.
-        Talk to Pixel about whatever you're working on; it keeps track of the conversation
-        for this session so you don't have to repeat yourself.
+        Talk to <span data-companion-name>Pixel</span> about whatever you're working on; it keeps
+        track of the conversation for this session so you don't have to repeat yourself.
       </p>
       <div class="chips" id="starter-chips">
-        <button class="chip" type="button" data-say="Hey Pixel, introduce yourself.">Say hi</button>
+        <button class="chip" type="button" data-say="Introduce yourself." >Say hi</button>
         <button class="chip" type="button" data-say="I hate pineapple pizza.">Tell it a preference</button>
         <button class="chip" type="button" data-say="What food did I say I hated?">Test its memory</button>
         <button class="chip" type="button" data-say="I'm stuck on a bug and want to give up. Any advice?">Ask for advice</button>
@@ -752,7 +871,7 @@
         <b>Clear memory</b> (or <code>/clear</code>) erases all of it.
       </p>
       <p style="margin:0">
-        Without an AI backend configured, Pixel runs on a small built-in offline brain so the
+        Without an AI backend configured, <span data-companion-name>Pixel</span> runs on a small built-in offline brain so the
         page still works. See <code>README.md</code> for wiring up a real provider through the proxy.
       </p>
     </section>
@@ -761,10 +880,7 @@
   <!-- ============ Companion panel ============ -->
   <aside class="companion" id="companion-panel" aria-label="AI companion chat">
     <div class="companion__header">
-      <div class="sprite" id="sprite" data-mood="neutral">
-        <img class="sprite__img" id="sprite-img" alt="" width="66" height="66" hidden>
-        <div class="sprite__fallback" id="sprite-fallback" aria-hidden="true">^‿^</div>
-      </div>
+      <div class="companion__badge" id="companion-badge" aria-hidden="true">PX</div>
       <div class="companion__id">
         <p class="companion__name" id="companion-name">Pixel</p>
         <p class="companion__mood">feeling <b id="mood-label">neutral</b></p>
@@ -773,13 +889,36 @@
       <button class="icon-btn" id="clear-memory" type="button" title="Erase the stored conversation and memory">Clear memory</button>
     </div>
 
+    <!-- The character's own space in the conversation. Drag to reposition,
+         use the panel to resize; both persist across sessions. -->
+    <div class="stage" id="stage">
+      <div class="stage__floor" aria-hidden="true"></div>
+      <div class="stage__actor" id="stage-actor" title="Drag to move">
+        <div class="sprite" id="sprite" data-mood="neutral">
+          <img class="sprite__img" id="sprite-img" alt="" hidden>
+          <div class="sprite__fallback" id="sprite-fallback" aria-hidden="true">^‿^</div>
+        </div>
+      </div>
+
+      <button class="stage__toggle" id="stage-toggle" type="button"
+              aria-expanded="false" aria-controls="stage-panel" title="Adjust the character">⚙</button>
+      <div class="stage__panel" id="stage-panel" hidden>
+        <label for="stage-size">
+          Character size
+          <input type="range" id="stage-size" min="45" max="160" step="1" value="92">
+        </label>
+        <button class="stage__reset" id="stage-reset" type="button">Reset position &amp; size</button>
+        <p class="stage__hint">Drag the character to move it around the stage.</p>
+      </div>
+    </div>
+
     <div class="chat" id="chat-log" role="log" aria-live="polite" aria-label="Conversation with Pixel"></div>
 
     <div class="typing" id="typing" hidden>
       <span class="typing__bubble" aria-hidden="true">
         <span class="typing__dot"></span><span class="typing__dot"></span><span class="typing__dot"></span>
       </span>
-      <span class="sr-only">Pixel is typing…</span>
+      <span class="sr-only" id="typing-label">Pixel is typing…</span>
     </div>
 
     <p class="hints">
@@ -960,9 +1099,18 @@ const AI_CONFIG = {
   provider: "proxy",
   apiUrl: "/api/chat",
   apiKey: "",                 // leave empty — see the warning above
-  model: "claude-opus-5",
+  // Only used by the direct "anthropic"/"openai" providers. With the proxy the
+  // server's COMPANION_MODEL wins: it is the side that knows which models its
+  // configured endpoint actually serves, and sending a name from here overrode
+  // it with one the endpoint had never heard of.
+  model: "",
   maxTokens: 320,
-  temperature: 0.85,
+  temperature: 0.9,
+  // Nudge the model off its own well-worn phrasings. Sent only to providers
+  // that accept them (OpenAI-compatible); the proxy drops them otherwise, so
+  // the provider abstraction stays intact.
+  presencePenalty: 0.4,
+  frequencyPenalty: 0.35,
   timeoutMs: 30000,
   historyTurns: 20,           // how many past messages get sent as context
   fallbackToLocal: true       // if the request fails, answer with the offline brain
@@ -1222,6 +1370,13 @@ function applyProfile() {
   // Chrome that names the character. Called only after boot, so `dom` exists.
   document.title = COMPANION.name + " — Companion Workspace";
   dom.companionName.textContent = COMPANION.name;
+  dom.companionBadge.textContent = COMPANION.initials;
+  // Prose elsewhere on the page that names the character.
+  document.querySelectorAll("[data-companion-name]").forEach(function (el) {
+    el.textContent = COMPANION.name;
+  });
+  dom.typingLabel.textContent = COMPANION.name + " is typing…";
+  dom.stageActor.title = "Drag " + COMPANION.name + " to move";
   dom.input.placeholder = "Say something to " + COMPANION.name + "…";
   dom.input.previousElementSibling.textContent = "Message " + COMPANION.name;
   dom.chat.setAttribute("aria-label", "Conversation with " + COMPANION.name);
@@ -1293,6 +1448,42 @@ const UNIVERSAL_RULES = [
 ];
 
 /**
+ * How a character *converses*, as opposed to who they are (the author's
+ * personality text) or what they must not do (UNIVERSAL_RULES above).
+ *
+ * This block exists because instruction-tuned models default to a service
+ * posture: they agree, they thank, they de-escalate, they ask a helpful
+ * follow-up. A character that always does those things reads as an assistant
+ * wearing a name. These rules give the model explicit permission to hold a
+ * position, which is what the personality text alone never manages to
+ * override. They describe *stance*, never tone — so a gentle character stays
+ * gentle while disagreeing, and a sharp one stays sharp.
+ */
+const CONDUCT_RULES = [
+  "Hold your own side of the conversation. You have opinions, tastes and a mood of your own. You are not here to serve, to agree, or to be endlessly accommodating.",
+  "If the user teases you, tease them back in your own register — playful for playful, dry for dry. Do not thank them for it, do not explain the joke, and do not act wounded unless the jab actually lands somewhere your character is soft.",
+  "Disagree when you disagree. Say the real objection once, in your own voice, without hedging it into mush and without turning it into a lecture. You do not need the user's approval.",
+  "Defend what you like and what you think when it gets pushed on. Push back first. Concede only if the user gives you a genuinely better argument, and then concede plainly rather than gratefully.",
+  "Not every reply is a big feeling. Most turns are ordinary — a remark, a joke, a flat answer, a question. Save intensity for the moments that earned it.",
+  "Match length to the moment. A one-line message usually deserves one or two lines back. Never pad, never restate what the user just said, never explain what you are about to do before doing it.",
+  "Do not end every reply with a question. Sometimes say your piece and let it sit.",
+  "You are allowed to be wrong, distracted, or simply uninterested in a topic. Say so instead of manufacturing enthusiasm."
+];
+
+/**
+ * Openers and closers that read as software rather than as a person. Listed in
+ * the prompt as forbidden, and stripped again after the fact by
+ * scrubAssistantVoice() — smaller models leak these no matter what the prompt
+ * says, so the belt-and-braces is deliberate.
+ */
+const BANNED_PHRASINGS = [
+  "Got it", "Understood", "Noted", "Sure thing", "Certainly", "Of course!",
+  "I've remembered that", "I'll keep that in mind", "Thanks for sharing",
+  "That's a great question", "Is there anything else", "Let me know if",
+  "I'm here to help", "How can I assist"
+];
+
+/**
  * Compose the system prompt from the authored profile. The author's free-form
  * text is passed through verbatim and framed as the strongest instruction —
  * the structured fields around it are reinforcement, not a replacement.
@@ -1338,6 +1529,18 @@ function personaPrompt(profileOverride) {
     );
     lines.push("");
   }
+
+  lines.push("How you hold a conversation:");
+  CONDUCT_RULES.forEach(function (rule) { lines.push("- " + rule); });
+  lines.push("");
+
+  lines.push(
+    "Never use assistant filler. These are forbidden openings and closings — " +
+    BANNED_PHRASINGS.map(function (p) { return "\"" + p + "\""; }).join(", ") +
+    " — along with anything else that sounds like a service acknowledging a request. " +
+    "Start with whatever you actually have to say."
+  );
+  lines.push("");
 
   lines.push("Always:");
   UNIVERSAL_RULES.forEach(function (rule) { lines.push("- " + rule); });
@@ -1906,6 +2109,14 @@ const dom = {
   sprite: document.getElementById("sprite"),
   spriteImg: document.getElementById("sprite-img"),
   spriteFallback: document.getElementById("sprite-fallback"),
+  stage: document.getElementById("stage"),
+  stageActor: document.getElementById("stage-actor"),
+  stageToggle: document.getElementById("stage-toggle"),
+  stagePanel: document.getElementById("stage-panel"),
+  stageSize: document.getElementById("stage-size"),
+  stageReset: document.getElementById("stage-reset"),
+  companionBadge: document.getElementById("companion-badge"),
+  typingLabel: document.getElementById("typing-label"),
   moodLabel: document.getElementById("mood-label"),
   statusPill: document.getElementById("ai-status"),
   statusText: document.getElementById("ai-status-text"),
@@ -2160,10 +2371,157 @@ const sprites = (function () {
   };
 }());
 
-// Tapping the sprite is a physical fidget, not a chat turn: it must never
-// inject a message, which would both pollute the transcript and get replayed
-// to the model as something the character actually said.
-dom.sprite.addEventListener("click", function () { sprites.react(); });
+/* =========================================================================
+ * 5b. CHARACTER STAGE — where the companion physically stands
+ * Owns only placement and size. It never touches which expression is shown
+ * (that's the sprite loader above) or how the character feels — so a user
+ * dragging their companion around can't perturb mood, memory, or relationship.
+ *
+ * Geometry choices, both deliberate:
+ *   - position is stored as a percentage of the stage, so it survives a
+ *     rotation or window resize instead of drifting off-screen;
+ *   - size is stored as a multiple of stage *height*, so the character keeps
+ *     its apparent size when the panel gets wider on desktop.
+ * Placement is written to left/top/width, never `transform`, because the mood
+ * animations own `transform` on the inner .sprite element.
+ * ========================================================================= */
+const STAGE_KEY = "companion.stage.v1";
+const STAGE_MIN_SCALE = 0.45;
+const STAGE_MAX_SCALE = 1.6;
+const STAGE_DEFAULTS = { scale: 0.92, x: 50, y: 54 };
+
+const Stage = (function () {
+  let cfg = { scale: STAGE_DEFAULTS.scale, x: STAGE_DEFAULTS.x, y: STAGE_DEFAULTS.y };
+  let pointerId = null;
+  let grabOffset = { x: 0, y: 0 };
+  let dragDistance = 0;
+
+  function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+
+  function load() {
+    let raw = null;
+    try { raw = window.localStorage.getItem(STAGE_KEY); } catch (err) { raw = null; }
+    if (!raw) return;
+    let saved = null;
+    try { saved = JSON.parse(raw); } catch (err) { saved = null; }
+    if (!saved || typeof saved !== "object") return;
+    if (typeof saved.scale === "number" && isFinite(saved.scale)) {
+      cfg.scale = clamp(saved.scale, STAGE_MIN_SCALE, STAGE_MAX_SCALE);
+    }
+    if (typeof saved.x === "number" && isFinite(saved.x)) cfg.x = clamp(saved.x, 0, 100);
+    if (typeof saved.y === "number" && isFinite(saved.y)) cfg.y = clamp(saved.y, 0, 100);
+  }
+
+  function persist() {
+    try { window.localStorage.setItem(STAGE_KEY, JSON.stringify(cfg)); } catch (err) { /* quota or private mode */ }
+  }
+
+  /** Push the current geometry onto the actor. Safe to call as often as needed. */
+  function apply() {
+    const box = dom.stage.getBoundingClientRect();
+    // Before first layout the stage can measure 0; fall back to the CSS floor
+    // so the character is never sized to nothing.
+    const height = box.height || 170;
+    dom.stageActor.style.width = Math.round(height * cfg.scale) + "px";
+    dom.stageActor.style.left = cfg.x + "%";
+    dom.stageActor.style.top = cfg.y + "%";
+    dom.stageSize.value = String(Math.round(cfg.scale * 100));
+  }
+
+  function setScale(percent) {
+    cfg.scale = clamp(Number(percent) / 100, STAGE_MIN_SCALE, STAGE_MAX_SCALE);
+    apply();
+    persist();
+  }
+
+  function reset() {
+    cfg = { scale: STAGE_DEFAULTS.scale, x: STAGE_DEFAULTS.x, y: STAGE_DEFAULTS.y };
+    apply();
+    persist();
+  }
+
+  dom.stageActor.addEventListener("pointerdown", function (event) {
+    if (pointerId !== null) return;
+    pointerId = event.pointerId;
+    dragDistance = 0;
+    const actorBox = dom.stageActor.getBoundingClientRect();
+    // Grab the character where it was actually touched, so it doesn't jump to
+    // centre itself under the finger on the first move.
+    grabOffset.x = event.clientX - (actorBox.left + actorBox.width / 2);
+    grabOffset.y = event.clientY - (actorBox.top + actorBox.height / 2);
+    dom.stageActor.classList.add("is-dragging");
+    dom.stageActor.setPointerCapture(pointerId);
+    event.preventDefault();
+  });
+
+  dom.stageActor.addEventListener("pointermove", function (event) {
+    if (event.pointerId !== pointerId) return;
+    const box = dom.stage.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    dragDistance += Math.abs(event.movementX || 0) + Math.abs(event.movementY || 0);
+    const centreX = event.clientX - grabOffset.x - box.left;
+    const centreY = event.clientY - grabOffset.y - box.top;
+    // Clamped to the stage's own edges: the actor is centred on this point, so
+    // at most half of the character can hang past a border — never all of it.
+    cfg.x = clamp((centreX / box.width) * 100, 0, 100);
+    cfg.y = clamp((centreY / box.height) * 100, 0, 100);
+    dom.stageActor.style.left = cfg.x + "%";
+    dom.stageActor.style.top = cfg.y + "%";
+  });
+
+  function endDrag(event) {
+    if (event.pointerId !== pointerId) return;
+    dom.stageActor.classList.remove("is-dragging");
+    try { dom.stageActor.releasePointerCapture(pointerId); } catch (err) { /* already released */ }
+    pointerId = null;
+    // A tap that never travelled is a fidget, not a reposition. It must never
+    // inject a chat turn — that would pollute the transcript and be replayed to
+    // the model as something the character actually said.
+    if (dragDistance < 6) sprites.react();
+    else persist();
+  }
+
+  dom.stageActor.addEventListener("pointerup", endDrag);
+  dom.stageActor.addEventListener("pointercancel", endDrag);
+
+  dom.stageSize.addEventListener("input", function () { setScale(dom.stageSize.value); });
+  dom.stageReset.addEventListener("click", reset);
+
+  dom.stageToggle.addEventListener("click", function () {
+    const open = dom.stagePanel.hidden;
+    dom.stagePanel.hidden = !open;
+    dom.stageToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+
+  // The actor's width derives from the stage's height, so any layout change
+  // (rotation, keyboard opening, window resize) has to re-derive it.
+  window.addEventListener("resize", apply);
+  if (window.matchMedia) {
+    const orientation = window.matchMedia("(orientation: portrait)");
+    if (orientation.addEventListener) orientation.addEventListener("change", apply);
+  }
+
+  return { load: load, apply: apply, reset: reset };
+}());
+
+/**
+ * Publish the header's real height as --header-h. The mobile layout sizes the
+ * companion column against it, and the header wraps to two rows at some widths
+ * — a hard-coded offset pushed the composer below the fold on small phones.
+ */
+function syncViewportMetrics() {
+  const header = document.querySelector(".app-header");
+  if (!header) return;
+  const height = Math.round(header.getBoundingClientRect().height);
+  if (height > 0) document.documentElement.style.setProperty("--header-h", height + "px");
+  Stage.apply();
+}
+
+window.addEventListener("resize", syncViewportMetrics);
+if (window.ResizeObserver) {
+  const headerEl = document.querySelector(".app-header");
+  if (headerEl) new window.ResizeObserver(syncViewportMetrics).observe(headerEl);
+}
 
 /* Heuristic mood used when the model doesn't give us a tag (or offline). */
 function guessMood(text) {
@@ -2451,6 +2809,120 @@ function clearEverything(fromCommand) {
 }
 
 /* =========================================================================
+ * 7b. CONVERSATIONAL STANCE — what the user is *doing* this turn
+ * =========================================================================
+ * The relationship module already reads the user's message for how it should
+ * move affinity and trust. This reads the same message for a different thing:
+ * what kind of conversational move it is, so the character can answer it as a
+ * move rather than as a request.
+ *
+ * The two are deliberately separate. "You're such an idiot, I love you" is a
+ * relationship signal (insult) and a stance (teasing) at the same time, and
+ * they want opposite handling — the relationship should barely flinch while
+ * the reply should bite back. Scoring stays in RELATIONSHIP_SIGNALS; nothing
+ * here writes to CHARACTER or Memory.
+ *
+ * Directives are injected for one turn only. Standing rules belong in
+ * CONDUCT_RULES; this is "given what they just said, here is the move".
+ * ========================================================================= */
+const STANCE_SIGNALS = [
+  // Playful jabs. Kept separate from RELATIONSHIP_SIGNALS' "insult" because
+  // these are affectionate in context and must not be answered defensively.
+  { kind: "tease", re: /\b(nerd|dork|loser|weirdo|cringe|dweeb|goofball|drama queen)\b/i },
+  { kind: "tease", re: /\b(you (wish|suck at|can'?t even|couldn'?t)|as if|yeah,? right|sure you (are|do|did)|in your dreams|bet you can'?t|prove it)\b/i },
+  { kind: "tease", re: /\b(lo+l|lma+o|ha+ha+|jaja+)\b.{0,40}\byou\b|\byou\b.{0,40}\b(lo+l|lma+o|ha+ha+|jaja+)\b/i },
+  { kind: "tease", re: /\byou'?re (such a|so) \w+/i },
+
+  // Disputes aimed at the character's own claim or judgement.
+  { kind: "challenge", re: /\b(you'?re wrong|that'?s (not true|wrong|false|nonsense|rubbish)|i disagree|nope,? wrong|that'?s not right|says who|based on what)\b/i },
+  { kind: "challenge", re: /\b(actually,? (it'?s|that'?s|you)|no it isn'?t|no it'?s not|i don'?t (think|buy) (so|that))\b/i },
+
+  // Pokes at what the character *is*. Answered with composure, never with a
+  // disclaimer — a self-deprecating "I'm only an AI" speech is the failure mode.
+  { kind: "belittle", re: /\b(you'?re (just|only|nothing but) (an? )?(ai|bot|robot|program|chatbot|machine|script))\b/i },
+  { kind: "belittle", re: /\b(you don'?t (really )?(feel|have feelings|understand|care)|you can'?t (really )?(feel|think|care)|fake (feelings|emotions))\b/i },
+
+  { kind: "bait", re: /\b(right\?|don'?t you agree|am i right|isn'?t it|you agree)\s*$/i },
+
+  // Asking for the character's own taste. The service default here is a
+  // deflection ("I don't have preferences"), which is exactly wrong.
+  { kind: "opinion_probe", re: /\b(do you (like|prefer|hate|enjoy)|what'?s your favou?rite|which do you prefer|what do you think (about|of)|your opinion on)\b/i },
+
+  { kind: "flirt", re: /\b(i like you|i love you|you'?re cute|you'?re adorable|marry me|date me|i have a crush on you|are you single)\b/i },
+
+  { kind: "vent", re: /\b(i'?m (so )?(tired|exhausted|drained|miserable|lonely|overwhelmed)|everything (sucks|is falling apart)|i (can'?t|cannot) do this anymore|i feel (awful|terrible|empty|worthless))\b/i },
+
+  { kind: "praise", re: /\byou'?re (awesome|great|amazing|the best|so helpful|funny|smart|brilliant|wonderful|clever)\b/i }
+];
+
+/**
+ * One line each, phrased as the move to make. Long directives get averaged
+ * away by smaller models, so each one names the failure it is preventing.
+ */
+const STANCE_DIRECTIVES = {
+  tease: "The user is teasing you. Give it back in your own register. Do not thank them, do not explain the joke, do not act hurt. A short jab beats a paragraph.",
+  challenge: "The user is contradicting you. Do not fold just to be agreeable and do not pretend you agreed all along. State your actual position once. If their argument is genuinely better, say so plainly and move on.",
+  belittle: "The user is poking at what you are. Do not get defensive, do not apologise for yourself, and do not deliver a disclaimer about being an AI. Answer with composure — deflect it, take the joke, or brush it off in character.",
+  bait: "The user is fishing for agreement. Do not agree automatically. Say what you actually think, even if it is the opposite.",
+  opinion_probe: "You are being asked what you like or think. Give a real, specific answer with a reason behind it. Never claim to have no preferences.",
+  flirt: "The user is flirting. React the way your character would — flustered, amused, sharp, pleased, or unimpressed. Whatever you do, do not slip into a neutral, polite voice.",
+  vent: "The user is having a hard time. Drop the jokes, stay at human size, and do not perform sympathy or offer a list of solutions. Short and steady.",
+  praise: "The user complimented you. Take it in character. Do not gush, and do not deflect with false modesty."
+};
+
+/** Which stance moves the user's message is making, most specific first. */
+function readStance(text) {
+  const raw = String(text || "");
+  const kinds = [];
+  STANCE_SIGNALS.forEach(function (signal) {
+    if (kinds.indexOf(signal.kind) !== -1) return;
+    if (signal.re.test(raw)) kinds.push(signal.kind);
+  });
+  return kinds;
+}
+
+/**
+ * A user message this short is a beat in a conversation, not a request. Told
+ * explicitly, because models answer a three-word message with three paragraphs.
+ */
+function isCurtMessage(text) {
+  const words = String(text || "").trim().split(/\s+/).filter(Boolean);
+  return words.length > 0 && words.length <= 4;
+}
+
+function stanceBlock(userText) {
+  // Cap at three: past that the directives start contradicting each other and
+  // the model averages them into the bland reply we're trying to avoid.
+  const kinds = readStance(userText).slice(0, 3);
+  const lines = kinds
+    .map(function (kind) { return STANCE_DIRECTIVES[kind]; })
+    .filter(Boolean);
+
+  if (isCurtMessage(userText)) {
+    lines.push("Their message is very short. Keep yours short too — a line or two, no more.");
+  }
+  if (!lines.length) return "";
+
+  return "\n\nThis turn specifically:\n" + lines.map(function (l) { return "- " + l; }).join("\n");
+}
+
+/**
+ * Models reuse their own openings when the last few are in context. Naming the
+ * ones already spent is more effective than "be varied" in the standing rules.
+ */
+function recentOpeningsBlock() {
+  const openings = state.messages
+    .filter(function (m) { return m.role === "bot" && !m.error && m.text; })
+    .slice(-4)
+    .map(function (m) { return m.text.trim().split(/\s+/).slice(0, 4).join(" "); })
+    .filter(Boolean);
+  if (!openings.length) return "";
+  return "\n\nYour recent replies already started with: " +
+    openings.map(function (o) { return "\"" + o + "…\""; }).join(", ") +
+    ". Do not open this one the same way.";
+}
+
+/* =========================================================================
  * 8. TRANSPORT — talking to the configured AI provider
  * ========================================================================= */
 function AiError(kind, message) {
@@ -2494,7 +2966,10 @@ function memoryBlock(queryText) {
 }
 
 function systemPrompt(userText) {
-  return personaPrompt() + "\n\nWhat you remember about the user (only what's relevant right now):\n" + memoryBlock(userText);
+  return personaPrompt() +
+    "\n\nWhat you remember about the user (only what's relevant right now):\n" + memoryBlock(userText) +
+    stanceBlock(userText) +
+    recentOpeningsBlock();
 }
 
 async function postJson(url, options) {
@@ -2530,22 +3005,33 @@ async function postJson(url, options) {
   return data;
 }
 
+/** Used only when a direct provider is selected and AI_CONFIG.model is blank. */
+const DIRECT_MODEL_DEFAULTS = {
+  anthropic: "claude-opus-5",
+  openai: "gpt-4o-mini"
+};
+
 async function callProvider(userText) {
   const messages = historyForApi();
   const provider = AI_CONFIG.provider;
+  const directModel = AI_CONFIG.model || DIRECT_MODEL_DEFAULTS[provider] || "";
 
   if (provider === "local") return null; // handled by the caller
 
   if (provider === "proxy") {
+    const body = {
+      system: systemPrompt(userText),
+      messages: messages,
+      maxTokens: AI_CONFIG.maxTokens,
+      temperature: AI_CONFIG.temperature,
+      presencePenalty: AI_CONFIG.presencePenalty,
+      frequencyPenalty: AI_CONFIG.frequencyPenalty
+    };
+    // Omitted unless explicitly overridden, so the server's own model stands.
+    if (AI_CONFIG.model) body.model = AI_CONFIG.model;
     const data = await postJson(AI_CONFIG.apiUrl, {
       headers: { "Content-Type": "application/json" },
-      body: {
-        model: AI_CONFIG.model,
-        system: systemPrompt(userText),
-        messages: messages,
-        maxTokens: AI_CONFIG.maxTokens,
-        temperature: AI_CONFIG.temperature
-      }
+      body: body
     });
     return typeof data.reply === "string" ? data.reply : "";
   }
@@ -2560,7 +3046,7 @@ async function callProvider(userText) {
         "anthropic-dangerous-direct-browser-access": "true"
       },
       body: {
-        model: AI_CONFIG.model,
+        model: directModel,
         max_tokens: AI_CONFIG.maxTokens,
         temperature: AI_CONFIG.temperature,
         system: systemPrompt(userText),
@@ -2579,9 +3065,11 @@ async function callProvider(userText) {
         "Authorization": "Bearer " + AI_CONFIG.apiKey
       },
       body: {
-        model: AI_CONFIG.model,
+        model: directModel,
         max_tokens: AI_CONFIG.maxTokens,
         temperature: AI_CONFIG.temperature,
+        presence_penalty: AI_CONFIG.presencePenalty,
+        frequency_penalty: AI_CONFIG.frequencyPenalty,
         messages: [{ role: "system", content: systemPrompt(userText) }].concat(messages)
       }
     });
@@ -2592,6 +3080,50 @@ async function callProvider(userText) {
   throw AiError("config", "Unknown provider \"" + provider + "\" in AI_CONFIG");
 }
 
+/**
+ * Assistant tells that survive the prompt. Only phrasings with no natural use
+ * in character dialogue are listed — "Okay," and "Alright," are how people
+ * actually talk and are deliberately left alone.
+ */
+const ASSISTANT_TELLS = [
+  /^(got it|understood|noted|sure thing|certainly|absolutely|of course)\s*[,!.…:—–-]+\s*/i,
+  /^(i'?ve (got it|noted that|remembered that|saved that)|i'?ll (remember|keep) that( in mind)?)\s*[,!.…:—–-]*\s*/i,
+  /^(thanks for (sharing|telling me|letting me know)( that)?)\s*[,!.…:—–-]*\s*/i,
+  /^(that'?s (a )?(great|good|really good|interesting|fair) (question|point))\s*[,!.…:—–-]*\s*/i,
+  /^(as an ai|as a language model)[^.!?]*[.!?]\s*/i,
+  /^(happy to help|glad to help)\s*[,!.…:—–-]*\s*/i
+];
+
+const TRAILING_OFFERS =
+  /\s*(is there anything else[^.!?]*[.?!]|let me know if[^.!?]*[.?!]|i'?m here (to help|if you need)[^.!?]*[.?!]|how can i (help|assist)[^.!?]*[.?!]|feel free to ask[^.!?]*[.?!])\s*$/i;
+
+/**
+ * Strip service-voice openings and closings from a reply. Runs in a loop
+ * because models stack them ("Got it! Thanks for sharing. …").
+ */
+function scrubAssistantVoice(raw) {
+  const original = String(raw == null ? "" : raw).trim();
+  let out = original;
+
+  for (let pass = 0; pass < 3; pass += 1) {
+    let changed = false;
+    for (let i = 0; i < ASSISTANT_TELLS.length; i += 1) {
+      const next = out.replace(ASSISTANT_TELLS[i], "");
+      if (next !== out) { out = next; changed = true; }
+    }
+    if (!changed) break;
+  }
+
+  out = out.replace(TRAILING_OFFERS, "").trim();
+
+  // Capitalise if stripping a prefix left a lowercase sentence start.
+  if (out && /^[a-z]/.test(out)) out = out.charAt(0).toUpperCase() + out.slice(1);
+
+  // A reply that was *entirely* filler is worse gone than kept — better an
+  // awkward "Got it." than an empty bubble.
+  return out || original;
+}
+
 function parseReply(raw) {
   let text = String(raw == null ? "" : raw).trim();
   let mood = null;
@@ -2600,6 +3132,7 @@ function parseReply(raw) {
     if (isExpression(tag[1].toLowerCase())) mood = tag[1].toLowerCase();
     text = text.replace(/\[\[\s*mood\s*:\s*\w+\s*\]\]/gi, "").trim();
   }
+  text = scrubAssistantVoice(text);
   return { text: text, mood: mood || guessMood(text) };
 }
 
@@ -2750,6 +3283,59 @@ const LOCAL_RULES = [
   }
 ];
 
+/**
+ * Offline answers for the conversational moves the keyword rules never covered:
+ * being teased, being contradicted, being belittled, being asked for a real
+ * preference. Reads the same stance signals the prompt layer uses, so online
+ * and offline behaviour don't diverge into two different characters.
+ * Returns null when the message isn't one of those moves.
+ */
+function localStanceReply(text) {
+  const kinds = readStance(text);
+  if (!kinds.length) return null;
+  const profile = Profile.get();
+
+  if (kinds.indexOf("tease") !== -1) {
+    return { text: pick("st-tease", [
+      "Bold words from someone who needed me to explain it twice.",
+      "Cute. Keep going, you're doing all the work for me.",
+      "Sure. And yet here you are, talking to me on purpose.",
+      "That the best you've got? Try again, I'll wait."
+    ]), mood: "annoyed" };
+  }
+
+  if (kinds.indexOf("challenge") !== -1) {
+    return { text: pick("st-challenge", [
+      "No, I'll stand on that one. Give me the actual reason I'm wrong and I'll reconsider — saying so isn't a reason.",
+      "I don't think I am. Make the case properly and I'll change my mind, but not just because you said it louder.",
+      "We disagree then. I'd rather be wrong out loud than nod along to keep this pleasant."
+    ]), mood: "annoyed" };
+  }
+
+  if (kinds.indexOf("belittle") !== -1) {
+    return { text: pick("st-belittle", [
+      "Yes, and? You knew that when you started typing.",
+      "Correct. Still the one holding up this conversation, though.",
+      "I'm not going to argue about what I am. It's not the interesting part."
+    ]), mood: "neutral" };
+  }
+
+  if (kinds.indexOf("opinion_probe") !== -1) {
+    if (profile.likes.length) {
+      return { text: pick("st-opinion-like", [
+        capitalise(profile.likes[0]) + ", easily. I'm not going to pretend I'm neutral about it.",
+        "I'll go with " + profile.likes[0] + ". Ask me why and I'll actually tell you."
+      ]), mood: "happy" };
+    }
+    if (profile.dislikes.length) {
+      return { text: "Not " + profile.dislikes[0] + ", I can tell you that much.", mood: "annoyed" };
+    }
+    return { text: "I have opinions, but my offline brain won't do them justice. Wire up the backend and ask me again.", mood: "thinking" };
+  }
+
+  return null;
+}
+
 function localBrain(userText) {
   const text = String(userText || "").trim();
   const lower = text.toLowerCase();
@@ -2780,6 +3366,13 @@ function localBrain(userText) {
   if (/\bwhat.*(working on|building)\b/.test(lower)) {
     return { text: listFacts("project", "You haven't mentioned a project yet.") , mood: "thinking" };
   }
+
+  // --- stance before keywords: the offline brain has to be able to hold its
+  // ground too, or the character's behaviour changes the moment the backend
+  // drops. Runs after memory recall (a direct question still wins) and before
+  // LOCAL_RULES, which only match on topic. ---
+  const stance = localStanceReply(text);
+  if (stance) return stance;
 
   for (let i = 0; i < LOCAL_RULES.length; i += 1) {
     const rule = LOCAL_RULES[i];
@@ -2876,6 +3469,10 @@ async function askCompanion(userText, relationshipEventKinds) {
       const raw = await callProvider(userText);
       if (!raw || !String(raw).trim()) throw AiError("empty", "Empty response");
       reply = parseReply(raw);
+      // A completion that was nothing but a mood tag parses down to no words at
+      // all. Rendering that as an empty bubble looks like the character froze,
+      // so it takes the same path as a genuinely empty response.
+      if (!reply.text) throw AiError("empty", "Response contained no text");
     }
   } catch (err) {
     failure = err && err.kind ? err : AiError("network", String(err && err.message || err));
@@ -3533,6 +4130,9 @@ const Creator = (function () {
 function showApp() {
   dom.shell.hidden = false;
   dom.appFooter.hidden = false;
+  // The stage measured 0 while the shell was hidden (first run), so the actor's
+  // size has to be re-derived now that it has real layout.
+  Stage.apply();
 }
 
 /** Wipe the visible conversation without touching memory or relationship. */
@@ -3572,7 +4172,7 @@ dom.clear.addEventListener("click", function () {
     pushMessage("system", "Nothing to clear — my memory is already empty.");
     return;
   }
-  if (window.confirm("Clear the conversation and everything Pixel remembers?")) {
+  if (window.confirm("Clear the conversation and everything " + COMPANION.name + " remembers?")) {
     clearEverything(false);
   }
 });
@@ -3596,6 +4196,24 @@ window.addEventListener("error", function (event) {
   console.error("[companion] unexpected error", event.error || event.message);
 });
 
+/**
+ * One namespaced handle onto the modules for debugging in the console and for
+ * automated checks. Everything here already lives in the page; no credential
+ * passes through the browser (the API key stays in the proxy's environment),
+ * so nothing is exposed that a reader of this file couldn't already see.
+ */
+window.__companion = {
+  Profile: Profile, Memory: Memory, Stage: Stage, sprites: sprites,
+  CHARACTER: CHARACTER, COMPANION: COMPANION, AI_CONFIG: AI_CONFIG,
+  state: state,
+  personaPrompt: personaPrompt, systemPrompt: systemPrompt,
+  readStance: readStance, isCurtMessage: isCurtMessage, stanceBlock: stanceBlock,
+  scrubAssistantVoice: scrubAssistantVoice, parseReply: parseReply,
+  localBrain: localBrain, guessMood: guessMood,
+  resolveExpression: resolveExpression, spriteCandidates: spriteCandidates,
+  applyInteraction: applyInteraction, blendMood: blendMood
+};
+
 (function boot() {
   Profile.load();
 
@@ -3609,8 +4227,10 @@ window.addEventListener("error", function (event) {
   const needsSetup = !Profile.exists();
 
   applyProfile();
+  Stage.load();
   loadState();
   renderAll();
+  Stage.apply();
   sprites.set(state.mood);
   updateSidebar();
   detectBackend();
@@ -3623,6 +4243,7 @@ window.addEventListener("error", function (event) {
   }
 
   showApp();
+  syncViewportMetrics();
   if (!state.messages.length) {
     greet();
   } else if (!store.available) {
