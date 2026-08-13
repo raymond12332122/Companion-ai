@@ -175,7 +175,14 @@
     border: 1px solid var(--line);
     overflow: hidden;
     animation: bob 4.5s ease-in-out infinite;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: pointer;
   }
+  .sprite:hover {
+    transform: scale(1.12) translateY(-2px);
+    filter: brightness(1.25) drop-shadow(0 8px 16px rgba(124, 156, 255, .4));
+  }
+  .sprite:active { transform: scale(0.96); }
   .sprite__img { display: block; width: 100%; height: 100%; object-fit: contain; }
   .sprite__fallback {
     display: grid; place-items: center;
@@ -183,20 +190,33 @@
     font-size: 1.15rem; font-weight: 700; letter-spacing: .5px;
     color: #0e1020;
     background: linear-gradient(140deg, #9fb6ff, #d4c2ff);
+    animation: pulse-fallback 2s ease-in-out infinite;
   }
-  .sprite[data-mood="happy"]       { box-shadow: inset 0 0 0 2px rgba(61, 220, 151, .45); }
-  .sprite[data-mood="sad"]         { box-shadow: inset 0 0 0 2px rgba(111, 143, 184, .45); }
-  .sprite[data-mood="surprised"]   { box-shadow: inset 0 0 0 2px rgba(255, 183, 3, .45); }
-  .sprite[data-mood="angry"]       { box-shadow: inset 0 0 0 2px rgba(239, 71, 111, .45); }
-  .sprite[data-mood="thinking"]    { box-shadow: inset 0 0 0 2px rgba(155, 123, 255, .45); }
-  .sprite[data-mood="annoyed"]     { box-shadow: inset 0 0 0 2px rgba(224, 120, 79, .45); }
-  .sprite[data-mood="embarrassed"] { box-shadow: inset 0 0 0 2px rgba(255, 107, 157, .45); }
-  .sprite[data-mood="curious"]     { box-shadow: inset 0 0 0 2px rgba(6, 182, 212, .45); }
-  .sprite[data-mood="sleepy"]      { box-shadow: inset 0 0 0 2px rgba(122, 143, 166, .45); }
-  .sprite[data-mood="excited"]     { box-shadow: inset 0 0 0 2px rgba(255, 111, 60, .45); }
-  .sprite[data-mood="chaotic"]     { box-shadow: inset 0 0 0 2px rgba(168, 85, 247, .45); }
+  .sprite[data-mood="happy"]       { box-shadow: inset 0 0 0 2px rgba(61, 220, 151, .45), 0 0 24px rgba(61, 220, 151, .35); animation: bob-bounce 4s ease-in-out infinite; }
+  .sprite[data-mood="sad"]         { box-shadow: inset 0 0 0 2px rgba(111, 143, 184, .45), 0 0 20px rgba(111, 143, 184, .2); animation: bob-droop 6s ease-in-out infinite; }
+  .sprite[data-mood="surprised"]   { box-shadow: inset 0 0 0 2px rgba(255, 183, 3, .45), 0 0 28px rgba(255, 183, 3, .4); animation: bob-pop 3s ease-in-out infinite; }
+  .sprite[data-mood="angry"]       { box-shadow: inset 0 0 0 2px rgba(239, 71, 111, .45), 0 0 20px rgba(239, 71, 111, .3); animation: bob-shake 2.5s ease-in-out infinite; }
+  .sprite[data-mood="thinking"]    { box-shadow: inset 0 0 0 2px rgba(155, 123, 255, .45), 0 0 22px rgba(155, 123, 255, .25); animation: bob-float 7s ease-in-out infinite; }
+  .sprite[data-mood="annoyed"]     { box-shadow: inset 0 0 0 2px rgba(224, 120, 79, .45), 0 0 18px rgba(224, 120, 79, .25); animation: bob-tap 3.5s ease-in-out infinite; }
+  .sprite[data-mood="embarrassed"] { box-shadow: inset 0 0 0 2px rgba(255, 107, 157, .45), 0 0 24px rgba(255, 107, 157, .32); animation: bob-wiggle 4s ease-in-out infinite; }
+  .sprite[data-mood="curious"]     { box-shadow: inset 0 0 0 2px rgba(6, 182, 212, .45), 0 0 28px rgba(6, 182, 212, .4); animation: bob-tilt 5s ease-in-out infinite; }
+  .sprite[data-mood="sleepy"]      { box-shadow: inset 0 0 0 2px rgba(122, 143, 166, .45), 0 0 15px rgba(122, 143, 166, .2); animation: bob-nod 8s ease-in-out infinite; }
+  .sprite[data-mood="excited"]     { box-shadow: inset 0 0 0 2px rgba(255, 111, 60, .45), 0 0 32px rgba(255, 111, 60, .4); animation: bob-jump 2.5s ease-in-out infinite; }
+  .sprite[data-mood="chaotic"]     { box-shadow: inset 0 0 0 2px rgba(168, 85, 247, .45), 0 0 28px rgba(168, 85, 247, .35); animation: bob-spin 3s ease-in-out infinite; }
 
   @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  @keyframes pulse-fallback { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
+  @keyframes bob-bounce { 0%, 100% { transform: translateY(0) scaleY(1); } 25% { transform: translateY(-6px) scaleY(1.05); } 50% { transform: translateY(0) scaleY(0.95); } 75% { transform: translateY(-3px) scaleY(1.02); } }
+  @keyframes bob-droop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+  @keyframes bob-pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+  @keyframes bob-shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-2px); } 40% { transform: translateX(2px); } 60% { transform: translateX(-1px); } 80% { transform: translateX(1px); } }
+  @keyframes bob-float { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(-6px); } 50% { transform: translateY(-8px); } 75% { transform: translateY(-4px); } }
+  @keyframes bob-tap { 0%, 100% { transform: translateY(0) rotateZ(0); } 40% { transform: translateY(-2px) rotateZ(-1.5deg); } 60% { transform: translateY(0) rotateZ(1deg); } }
+  @keyframes bob-wiggle { 0%, 100% { transform: rotateZ(0); } 25% { transform: rotateZ(-2deg) translateY(-1px); } 50% { transform: rotateZ(0); } 75% { transform: rotateZ(2deg) translateY(-1px); } }
+  @keyframes bob-tilt { 0%, 100% { transform: rotateZ(0) translateY(0); } 50% { transform: rotateZ(3deg) translateY(-4px); } }
+  @keyframes bob-nod { 0%, 100% { transform: rotateX(0); } 50% { transform: rotateX(3deg) translateY(2px); } }
+  @keyframes bob-jump { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-12px) scale(1.1); } }
+  @keyframes bob-spin { 0%, 100% { transform: rotate(0deg) translateY(0); } 50% { transform: rotate(6deg) translateY(-5px); } }
 
   .companion__id { min-width: 0; flex: 1; }
   .companion__name { margin: 0; font-size: 1.02rem; font-weight: 700; }
@@ -1330,6 +1350,11 @@ const sprites = (function () {
     attemptNext();
   });
 
+  function react() {
+    dom.sprite.style.animation = "bob-pop 0.4s ease-out";
+    setTimeout(function () { dom.sprite.style.animation = ""; }, 400);
+  }
+
   return {
     set: function (mood) {
       if (MOODS.indexOf(mood) === -1) mood = "neutral";
@@ -1343,10 +1368,18 @@ const sprites = (function () {
       attemptChain = expressionChain(mood);
       attemptNext();
     },
+    react: react,
     isBroken: function (mood) { return Boolean(broken[mood]); },
     chainFor: expressionChain
   };
 }());
+
+dom.sprite.addEventListener("click", function () {
+  const reactions = ["Pixel waves at you!", "What's on your mind?", "I'm listening...", "Tell me more!", "Haha, hi there!"];
+  const msg = reactions[Math.floor(Math.random() * reactions.length)];
+  pushMessage("bot", msg, { instant: true });
+  sprites.react();
+});
 
 /* Heuristic mood used when the model doesn't give us a tag (or offline). */
 function guessMood(text) {
