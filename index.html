@@ -677,6 +677,7 @@ const state = {
 };
 
 function loadState() {
+  Memory.load();
   const saved = store.read();
   if (!saved || typeof saved !== "object") return;
   if (Array.isArray(saved.messages)) {
@@ -755,9 +756,11 @@ function rememberFacts(text) {
     const fact = { kind: pattern.kind, label: label, value: value, at: Date.now() };
     if (pattern.kind === "name") {
       state.facts = state.facts.filter(function (f) { return f.kind !== "name"; });
+      Memory.removeByType("name");
     }
     state.facts.push(fact);
     found.push(fact);
+    Memory.add({ type: pattern.kind, content: label + ": " + value });
   });
   if (state.facts.length > 40) state.facts = state.facts.slice(-40);
   return found;
@@ -771,6 +774,167 @@ function factsBlock() {
 function findFacts(kind) {
   return state.facts.filter(function (f) { return f.kind === kind; });
 }
+
+/* =========================================================================
+ * 3b. LONG-TERM MEMORY
+ * Separate from `state` (short-term: this session's messages/facts) on
+ * purpose — its own storage key, its own CRUD, its own retrieval. The AI
+ * transport and UI only ever go through this object's interface, so the
+ * backing store (localStorage today) can move to a server later without
+ * touching either.
+ * ========================================================================= */
+const MEMORY_KEY = "companion.pixel.memory.v1";
+const MAX_MEMORIES = 200;
+const MEMORY_IMPORTANCE = {
+  name: 0.95, dislike: 0.5, like: 0.5, project: 0.6,
+  place: 0.55, job: 0.6, pet: 0.55, favorite: 0.55, goal: 0.6, note: 0.6
+};
+const MEMORY_STOPWORDS = new Set([
+  "the", "and", "that", "this", "with", "have", "from", "your", "what", "about",
+  "just", "really", "would", "could", "should", "there", "their", "them", "then",
+  "than", "when", "where", "which", "been", "were", "was", "are", "for", "you", "my"
+]);
+
+const Memory = (function () {
+  let items = [];
+
+  function persist() {
+    if (!store.available) return false;
+    try {
+      window.localStorage.setItem(MEMORY_KEY, JSON.stringify(items));
+      return true;
+    } catch (err) { return false; }
+  }
+
+  function load() {
+    if (!store.available) return;
+    try {
+      const raw = window.localStorage.getItem(MEMORY_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) {
+        items = parsed.filter(function (m) {
+          return m && typeof m.id === "string" && typeof m.content === "string";
+        });
+      }
+    } catch (err) { /* ignore corrupt storage, start fresh */ }
+  }
+
+  function clamp01(n) { return Math.max(0, Math.min(1, n)); }
+
+  function tokenize(text) {
+    return String(text || "")
+      .toLowerCase()
+      .split(/[^a-z0-9']+/)
+      .filter(function (t) { return t.length >= 3 && !MEMORY_STOPWORDS.has(t); });
+  }
+
+  function trim() {
+    if (items.length <= MAX_MEMORIES) return;
+    items.sort(function (a, b) { return (a.importance - b.importance) || (a.updatedAt - b.updatedAt); });
+    items = items.slice(items.length - MAX_MEMORIES);
+  }
+
+  /** Create, or reinforce an existing memory of the same type+content (bumps importance, no dupes). */
+  function add(entry) {
+    const type = (entry && entry.type) || "note";
+    const content = String(entry && entry.content || "").trim();
+    if (!content) return null;
+    const importance = clamp01(
+      typeof entry.importance === "number" ? entry.importance : (MEMORY_IMPORTANCE[type] || 0.5)
+    );
+    const existing = items.find(function (m) {
+      return m.type === type && m.content.toLowerCase() === content.toLowerCase();
+    });
+    if (existing) {
+      existing.importance = clamp01(Math.max(existing.importance, importance));
+      existing.updatedAt = Date.now();
+      persist();
+      return existing;
+    }
+    const memory = {
+      id: newId(),
+      type: type,
+      content: content,
+      importance: importance,
+      tags: Array.isArray(entry.tags) ? entry.tags : [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    items.push(memory);
+    trim();
+    persist();
+    return memory;
+  }
+
+  function update(id, patch) {
+    const memory = items.find(function (m) { return m.id === id; });
+    if (!memory || !patch) return null;
+    if (typeof patch.content === "string" && patch.content.trim()) memory.content = patch.content.trim();
+    if (typeof patch.importance === "number") memory.importance = clamp01(patch.importance);
+    if (typeof patch.type === "string" && patch.type) memory.type = patch.type;
+    if (Array.isArray(patch.tags)) memory.tags = patch.tags;
+    memory.updatedAt = Date.now();
+    persist();
+    return memory;
+  }
+
+  function remove(id) {
+    const before = items.length;
+    items = items.filter(function (m) { return m.id !== id; });
+    if (items.length === before) return false;
+    persist();
+    return true;
+  }
+
+  function removeByType(type) {
+    const before = items.length;
+    items = items.filter(function (m) { return m.type !== type; });
+    if (items.length === before) return false;
+    persist();
+    return true;
+  }
+
+  /** Delete by id, or by id prefix so short-typed /forget commands work. */
+  function removeByPrefix(idPrefix) {
+    const match = items.find(function (m) { return m.id.indexOf(idPrefix) === 0; });
+    return match ? remove(match.id) : false;
+  }
+
+  function get(id) {
+    return items.find(function (m) { return m.id === id; }) || null;
+  }
+
+  function list() {
+    return items.slice().sort(function (a, b) { return b.updatedAt - a.updatedAt; });
+  }
+
+  /**
+   * Score memories against a query so only relevant ones reach the prompt.
+   * Keyword overlap dominates the score; importance breaks ties. A couple of
+   * high-importance "identity" memories (name, etc.) ride along even with
+   * zero overlap so replies stay grounded between direct references.
+   */
+  function retrieve(queryText, limit) {
+    const cap = typeof limit === "number" ? limit : 6;
+    const tokens = tokenize(queryText);
+    const scored = items.map(function (m) {
+      const memTokens = tokenize(m.content + " " + m.tags.join(" "));
+      const overlap = tokens.filter(function (t) { return memTokens.indexOf(t) !== -1; }).length;
+      return { memory: m, overlap: overlap, score: overlap * 2 + m.importance };
+    });
+    const relevant = scored.filter(function (s) { return s.overlap > 0 || s.memory.importance >= 0.85; });
+    relevant.sort(function (a, b) { return b.score - a.score; });
+    return relevant.slice(0, cap).map(function (s) { return s.memory; });
+  }
+
+  function clear() { items = []; persist(); }
+
+  return {
+    load: load, add: add, update: update, remove: remove,
+    removeByType: removeByType, removeByPrefix: removeByPrefix,
+    get: get, list: list, retrieve: retrieve, clear: clear
+  };
+}());
 
 /* =========================================================================
  * 4. DOM REFERENCES
@@ -997,7 +1161,10 @@ const HELP_TEXT = [
   "",
   "Commands:",
   "/help — this message",
-  "/memory — what I currently have stored about you",
+  "/memory — what I currently have stored about you this session",
+  "/memories — everything in long-term memory, with ids",
+  "/remember <text> — pin something to long-term memory yourself",
+  "/forget <id> — delete one long-term memory (see /memories for ids)",
   "/clear — wipe the conversation and everything I remember"
 ].join("\n");
 
@@ -1029,13 +1196,56 @@ function runCommand(raw) {
     return true;
   }
 
+  if (command === "/memories") {
+    const items = Memory.list();
+    if (!items.length) {
+      pushMessage("system", "Long-term memory is empty. Tell me something worth keeping, or use /remember.");
+    } else {
+      const lines = ["Long-term memory (" + items.length + "):"];
+      items.slice(0, 20).forEach(function (m) {
+        lines.push("• [" + m.id.slice(0, 6) + "] (" + m.type + ", " + Math.round(m.importance * 100) + "%) " + m.content);
+      });
+      if (items.length > 20) lines.push("…and " + (items.length - 20) + " more.");
+      lines.push("");
+      lines.push("Use /forget <id> to delete one.");
+      pushMessage("system", lines.join("\n"));
+    }
+    sprites.set("thinking");
+    return true;
+  }
+
+  if (command === "/remember") {
+    const text = raw.trim().slice("/remember".length).trim();
+    if (!text) {
+      pushMessage("system", "Tell me what to remember, e.g. /remember I prefer dark mode.");
+    } else {
+      const memory = Memory.add({ type: "note", content: text, importance: 0.65 });
+      pushMessage("system", "Filed that away: \"" + memory.content + "\"");
+    }
+    sprites.set("happy");
+    return true;
+  }
+
+  if (command === "/forget") {
+    const arg = raw.trim().slice("/forget".length).trim();
+    if (!arg) {
+      pushMessage("system", "Tell me which one, e.g. /forget a1b2c3 (see /memories for ids).");
+      sprites.set("thinking");
+      return true;
+    }
+    const removed = Memory.removeByPrefix(arg.toLowerCase());
+    pushMessage("system", removed ? "Forgotten." : "Couldn't find a memory with id \"" + arg + "\".");
+    sprites.set(removed ? "neutral" : "thinking");
+    return true;
+  }
+
   if (command === "/clear") {
     clearEverything(true);
     return true;
   }
 
   if (command.charAt(0) === "/") {
-    pushMessage("system", "I don't know " + command + ". Try /help, /memory or /clear.");
+    pushMessage("system", "I don't know " + command + ". Try /help for the full list.");
     return true;
   }
 
@@ -1048,6 +1258,7 @@ function clearEverything(fromCommand) {
   state.startedAt = Date.now();
   state.lastUserText = "";
   store.drop();
+  Memory.clear();
   dom.chat.innerHTML = "";
   sprites.set("neutral");
   saveState();
@@ -1095,8 +1306,14 @@ function normaliseTurns(turns) {
   return out;
 }
 
-function systemPrompt() {
-  return personaPrompt() + "\n\nWhat you remember about the user this session:\n" + factsBlock();
+function memoryBlock(queryText) {
+  const relevant = Memory.retrieve(queryText || "", 6);
+  if (!relevant.length) return "(nothing relevant stored yet)";
+  return relevant.map(function (m) { return "- " + m.content; }).join("\n");
+}
+
+function systemPrompt(userText) {
+  return personaPrompt() + "\n\nWhat you remember about the user (only what's relevant right now):\n" + memoryBlock(userText);
 }
 
 async function postJson(url, options) {
@@ -1143,7 +1360,7 @@ async function callProvider(userText) {
       headers: { "Content-Type": "application/json" },
       body: {
         model: AI_CONFIG.model,
-        system: systemPrompt(),
+        system: systemPrompt(userText),
         messages: messages,
         maxTokens: AI_CONFIG.maxTokens,
         temperature: AI_CONFIG.temperature
@@ -1165,7 +1382,7 @@ async function callProvider(userText) {
         model: AI_CONFIG.model,
         max_tokens: AI_CONFIG.maxTokens,
         temperature: AI_CONFIG.temperature,
-        system: systemPrompt(),
+        system: systemPrompt(userText),
         messages: messages
       }
     });
@@ -1184,7 +1401,7 @@ async function callProvider(userText) {
         model: AI_CONFIG.model,
         max_tokens: AI_CONFIG.maxTokens,
         temperature: AI_CONFIG.temperature,
-        messages: [{ role: "system", content: systemPrompt() }].concat(messages)
+        messages: [{ role: "system", content: systemPrompt(userText) }].concat(messages)
       }
     });
     const choice = data.choices && data.choices[0];
