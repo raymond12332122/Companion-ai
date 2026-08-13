@@ -5,8 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A small workspace with Pixel, an AI companion that remembers your session.">
 <meta name="color-scheme" content="dark light">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#7c9cff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Pixel — Companion Workspace</title>
 <link rel="icon" href="assets/sprites/pixel-happy.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%237c9cff' width='180' height='180' rx='40'/><text x='90' y='135' font-size='72' font-weight='bold' fill='%230e1020' text-anchor='middle'>^‿^</text></svg>">
 <style>
   :root {
     --bg: #0e1020;
@@ -2233,6 +2239,15 @@ window.addEventListener("error", function (event) {
 
   detectBackend();
 }());
+
+/* Register service worker for PWA offline support */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js")
+      .then(function (reg) { console.log("[PWA] Service worker registered"); })
+      .catch(function (err) { console.log("[PWA] Service worker registration failed:", err); });
+  });
+}
 </script>
 </body>
 </html>
