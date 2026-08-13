@@ -184,11 +184,17 @@
     color: #0e1020;
     background: linear-gradient(140deg, #9fb6ff, #d4c2ff);
   }
-  .sprite[data-mood="happy"]     { box-shadow: inset 0 0 0 2px rgba(61, 220, 151, .45); }
-  .sprite[data-mood="sad"]       { box-shadow: inset 0 0 0 2px rgba(111, 143, 184, .45); }
-  .sprite[data-mood="surprised"] { box-shadow: inset 0 0 0 2px rgba(255, 183, 3, .45); }
-  .sprite[data-mood="angry"]     { box-shadow: inset 0 0 0 2px rgba(239, 71, 111, .45); }
-  .sprite[data-mood="thinking"]  { box-shadow: inset 0 0 0 2px rgba(155, 123, 255, .45); }
+  .sprite[data-mood="happy"]       { box-shadow: inset 0 0 0 2px rgba(61, 220, 151, .45); }
+  .sprite[data-mood="sad"]         { box-shadow: inset 0 0 0 2px rgba(111, 143, 184, .45); }
+  .sprite[data-mood="surprised"]   { box-shadow: inset 0 0 0 2px rgba(255, 183, 3, .45); }
+  .sprite[data-mood="angry"]       { box-shadow: inset 0 0 0 2px rgba(239, 71, 111, .45); }
+  .sprite[data-mood="thinking"]    { box-shadow: inset 0 0 0 2px rgba(155, 123, 255, .45); }
+  .sprite[data-mood="annoyed"]     { box-shadow: inset 0 0 0 2px rgba(224, 120, 79, .45); }
+  .sprite[data-mood="embarrassed"] { box-shadow: inset 0 0 0 2px rgba(255, 107, 157, .45); }
+  .sprite[data-mood="curious"]     { box-shadow: inset 0 0 0 2px rgba(6, 182, 212, .45); }
+  .sprite[data-mood="sleepy"]      { box-shadow: inset 0 0 0 2px rgba(122, 143, 166, .45); }
+  .sprite[data-mood="excited"]     { box-shadow: inset 0 0 0 2px rgba(255, 111, 60, .45); }
+  .sprite[data-mood="chaotic"]     { box-shadow: inset 0 0 0 2px rgba(168, 85, 247, .45); }
 
   @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 
@@ -513,19 +519,31 @@ const AI_CONFIG = {
 /* =========================================================================
  * 2. CHARACTER DEFINITION
  * ========================================================================= */
-const MOODS = ["neutral", "happy", "sad", "surprised", "angry", "thinking"];
+// "thinking" predates this list and keeps its own sprite/asset — kept alongside
+// the 11 required emotions rather than removed, so existing call sites (chat
+// commands, LOCAL_RULES) that already rely on it don't need to change.
+const MOODS = [
+  "neutral", "happy", "sad", "angry", "annoyed", "embarrassed",
+  "surprised", "curious", "sleepy", "excited", "chaotic", "thinking"
+];
 
 const COMPANION = {
   name: "Pixel",
   initials: "PX",
   spriteFor: function (mood) { return "assets/sprites/pixel-" + mood + ".svg"; },
-  // Used only when a sprite image cannot be loaded.
+  // Used only when no sprite image (real or fallback-chain) can be loaded.
   faces: {
     neutral: "•ᴗ•",
     happy: "^‿^",
     sad: "•︵•",
-    surprised: "0_0",
     angry: ">_<",
+    annoyed: "-_-",
+    embarrassed: ">///<",
+    surprised: "0_0",
+    curious: "o_O",
+    sleepy: "-_- z",
+    excited: "^o^",
+    chaotic: "@_@",
     thinking: "•_•?"
   }
 };
@@ -560,6 +578,13 @@ const CHARACTER = {
   // and it's reported back to the model so replies stay consistent with how
   // Pixel currently "feels", not just reactive to the latest message.
   mood: { current: "neutral", intensity: 0.45 },
+  // Personality-flavored substitution: when the base signal is this key,
+  // Pixel's own traits (playful, curious) color it as this instead — a data
+  // hook a differently-written character (shy, chaotic, etc.) could repopulate
+  // without touching the expression controller itself.
+  expressionBias: {
+    surprised: "curious"
+  },
   // Relationship progresses gradually from detected interaction signals (see
   // the Relationship module below), not from raw affinity alone — stage
   // transitions are threshold+cooldown gated so one line of dialogue can't
@@ -579,8 +604,14 @@ const MOOD_DESCRIPTIONS = {
   neutral: "even, settled",
   happy: "upbeat, a bit more energy in your replies",
   sad: "subdued, gentler, less snappy with the jokes",
-  surprised: "caught off guard, more exclamatory",
   angry: "irritated, terser, patience running thin",
+  annoyed: "mildly irritated, a bit clipped, patience wearing but not gone",
+  embarrassed: "flustered, a little defensive or deflecting with humor",
+  surprised: "caught off guard, more exclamatory",
+  curious: "intrigued, leaning into the topic, asking more than usual",
+  sleepy: "low energy, replies trail off, might mention being tired",
+  excited: "high energy, enthusiastic, quicker replies",
+  chaotic: "unpredictable, jumping between ideas, a little manic in a fun way",
   thinking: "distracted, weighing something, replies trail into questions"
 };
 
@@ -609,7 +640,10 @@ function personaPrompt() {
   );
   lines.push("");
   lines.push("Output format: end EVERY reply with a mood tag on the same line, one of:");
-  lines.push("[[mood:neutral]] [[mood:happy]] [[mood:sad]] [[mood:surprised]] [[mood:angry]] [[mood:thinking]]");
+  lines.push(
+    "[[mood:neutral]] [[mood:happy]] [[mood:sad]] [[mood:angry]] [[mood:annoyed]] [[mood:embarrassed]] " +
+    "[[mood:surprised]] [[mood:curious]] [[mood:sleepy]] [[mood:excited]] [[mood:chaotic]] [[mood:thinking]]"
+  );
   lines.push("The tag reflects your facial expression and updates your mood. Nothing after the tag.");
   return lines.join("\n");
 }
@@ -1164,11 +1198,85 @@ const dom = {
 };
 
 /* =========================================================================
+ * 4b. EXPRESSION CONTROLLER
+ * Decides WHICH emotion state should be shown, separate from how it's
+ * rendered (that's the sprite system below) and separate from how the AI
+ * or personality/relationship logic produced a candidate in the first
+ * place. Two things feed in:
+ *   - the base mood: the AI's [[mood:x]] tag, or guessMood() offline
+ *   - this turn's relationship signal kinds (if any fired) from applyInteraction
+ * Personality/relationship influence is applied here, deterministically —
+ * no randomness — so it's easy to reason about and test. The result still
+ * passes through blendMood() afterward, which is what actually prevents
+ * flapping turn to turn; this controller only picks the candidate.
+ * ========================================================================= */
+
+/** A significant relationship moment this turn outweighs the base mood guess. */
+const RELATIONSHIP_EXPRESSION_HINTS = {
+  insult: "angry",
+  dismissal: "annoyed",
+  rupture: "angry",
+  apology: "curious",
+  disclosure: "curious",
+  romantic: "embarrassed",
+  gratitude: "happy",
+  compliment: "happy"
+};
+
+/**
+ * Closest-available-expression chains for graceful sprite-asset fallback —
+ * used by the sprite loader below when an image 404s or fails to decode,
+ * never by the controller itself (which always resolves to one of MOODS).
+ */
+const EXPRESSION_FALLBACK = {
+  annoyed: ["angry"],
+  embarrassed: ["surprised", "happy"],
+  curious: ["thinking", "surprised"],
+  sleepy: ["neutral"],
+  excited: ["happy", "surprised"],
+  chaotic: ["surprised", "excited", "happy"]
+};
+
+function expressionChain(mood) {
+  const chain = [mood].concat(EXPRESSION_FALLBACK[mood] || []);
+  if (chain.indexOf("neutral") === -1) chain.push("neutral");
+  const seen = Object.create(null);
+  return chain.filter(function (m) {
+    if (seen[m]) return false;
+    seen[m] = true;
+    return true;
+  });
+}
+
+/**
+ * baseMood: the AI-tagged or guessed emotion for this reply.
+ * relationshipEventKinds: signal kinds (e.g. "insult", "gratitude") that
+ * fired on the user's message this turn, from applyInteraction()'s result.
+ */
+function resolveExpression(baseMood, relationshipEventKinds) {
+  if (relationshipEventKinds && relationshipEventKinds.length) {
+    for (let i = 0; i < relationshipEventKinds.length; i++) {
+      const hinted = RELATIONSHIP_EXPRESSION_HINTS[relationshipEventKinds[i]];
+      if (hinted) return hinted;
+    }
+  }
+  const biased = CHARACTER.expressionBias[baseMood];
+  if (biased) return biased;
+  return baseMood;
+}
+
+/* =========================================================================
  * 5. SPRITE SYSTEM (real image files + graceful fallback)
+ * Renders whatever expression the controller above picked. Doesn't know
+ * about mood, personality, or relationships — only "show me X" and how to
+ * degrade if the asset for X isn't available. Static and animated image
+ * formats (SVG/SMIL, APNG, animated WEBP, GIF) all work here unchanged:
+ * it's a plain <img src>, so the browser handles playback either way.
  * ========================================================================= */
 const sprites = (function () {
   const broken = Object.create(null);
   let pending = null;
+  let attemptChain = [];
 
   function showFallback(mood) {
     dom.spriteImg.hidden = true;
@@ -1181,16 +1289,45 @@ const sprites = (function () {
     dom.spriteImg.hidden = false;
   }
 
+  function tryLoad(candidate) {
+    pending = candidate;
+    const next = COMPANION.spriteFor(candidate);
+    if (dom.spriteImg.getAttribute("src") !== next) {
+      dom.spriteImg.setAttribute("src", next);
+    } else if (dom.spriteImg.complete && dom.spriteImg.naturalWidth > 0) {
+      showImage();
+    }
+  }
+
+  // Walks the closest-available-expression chain for whatever mood is
+  // currently displayed (state.mood), skipping any asset already known to
+  // be broken. Only once every candidate — including neutral — has failed
+  // does it fall back to the drawn text face, so a missing asset never
+  // shows a broken-image icon.
+  function attemptNext() {
+    while (attemptChain.length) {
+      const candidate = attemptChain.shift();
+      if (broken[candidate]) continue;
+      tryLoad(candidate);
+      return;
+    }
+    showFallback(state.mood);
+  }
+
   // The <img> starts hidden and the drawn fallback face is visible, so a missing
   // file can never flash an empty rectangle or a broken-image icon.
   dom.spriteImg.addEventListener("load", function () {
-    if (dom.spriteImg.naturalWidth === 0) { broken[pending] = true; showFallback(pending || state.mood); return; }
+    if (dom.spriteImg.naturalWidth === 0) {
+      if (pending) broken[pending] = true;
+      attemptNext();
+      return;
+    }
     showImage();
   });
 
   dom.spriteImg.addEventListener("error", function () {
     if (pending) broken[pending] = true;
-    showFallback(pending || state.mood);
+    attemptNext();
   });
 
   return {
@@ -1203,16 +1340,11 @@ const sprites = (function () {
       dom.spriteImg.alt = COMPANION.name + " looking " + mood;
       dom.spriteFallback.textContent = COMPANION.faces[mood] || COMPANION.faces.neutral;
 
-      if (broken[mood]) { showFallback(mood); return; }
-      pending = mood;
-      const next = COMPANION.spriteFor(mood);
-      if (dom.spriteImg.getAttribute("src") !== next) {
-        dom.spriteImg.setAttribute("src", next);
-      } else if (dom.spriteImg.complete && dom.spriteImg.naturalWidth > 0) {
-        showImage();
-      }
+      attemptChain = expressionChain(mood);
+      attemptNext();
     },
-    isBroken: function (mood) { return Boolean(broken[mood]); }
+    isBroken: function (mood) { return Boolean(broken[mood]); },
+    chainFor: expressionChain
   };
 }());
 
@@ -1222,7 +1354,12 @@ function guessMood(text) {
   if (/\b(sorry|that sucks|rough|sad|unfortunate|tough)\b/.test(t)) return "sad";
   if (/\b(wait,? what|whoa|no way|seriously\?|really\?)/.test(t)) return "surprised";
   if (/\b(nope|wrong|disagree|actually,|bad idea|don't do)\b/.test(t)) return "angry";
+  if (/\b(ugh|meh|whatever|so annoying|irritating)\b/.test(t)) return "annoyed";
+  if (/\b(oops|my bad|so awkward|blushing)\b/.test(t)) return "embarrassed";
+  if (/\b(tired|sleepy|yawn|exhausted|can'?t keep my eyes open)\b/.test(t)) return "sleepy";
+  if (/\b(omg|yesss+|so excited|can'?t wait|let'?s go)\b/.test(t)) return "excited";
   if (/\b(hmm|let me think|not sure|depends|maybe)\b/.test(t)) return "thinking";
+  if (/\b(why|how come|what if|tell me more)\b/.test(t)) return "curious";
   if (/\b(nice|great|love|awesome|congrats|ha|haha|glad|yes!)\b/.test(t) || /[!]$/.test(t.trim())) return "happy";
   return "neutral";
 }
@@ -1864,7 +2001,7 @@ function capitalise(str) {
 /* =========================================================================
  * 10. CONVERSATION FLOW
  * ========================================================================= */
-async function askCompanion(userText) {
+async function askCompanion(userText, relationshipEventKinds) {
   if (state.busy) return;
   setBusy(true);
   setTyping(true);
@@ -1898,7 +2035,7 @@ async function askCompanion(userText) {
     if (AI_CONFIG.fallbackToLocal) {
       const backup = localBrain(userText);
       pushMessage("system", friendly + " (Falling back to my offline brain — details: " + failure.message + ")");
-      sprites.set(blendMood(backup.mood));
+      sprites.set(blendMood(resolveExpression(backup.mood, relationshipEventKinds)));
       pushMessage("bot", backup.text, { mood: backup.mood });
       setStatus("error", "AI backend unavailable — offline brain");
       state.transport = "local";
@@ -1910,7 +2047,7 @@ async function askCompanion(userText) {
     return;
   }
 
-  sprites.set(blendMood(reply.mood));
+  sprites.set(blendMood(resolveExpression(reply.mood, relationshipEventKinds)));
   pushMessage("bot", reply.text, { mood: reply.mood });
   setBusy(false);
 }
@@ -1937,7 +2074,7 @@ function submitText(rawText) {
   const relResult = applyInteraction(text);
   if (learned.length || relResult.changed) saveState();
   updateSidebar();
-  askCompanion(text);
+  askCompanion(text, relResult.events);
 }
 
 function greet() {
