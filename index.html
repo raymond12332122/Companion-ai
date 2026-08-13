@@ -530,30 +530,99 @@ const COMPANION = {
   }
 };
 
-const PERSONA_PROMPT = [
-  "You are Pixel, a small robot companion who hangs out in the corner of the user's workspace app.",
-  "",
-  "Voice and personality:",
-  "- Warm and casual, like a friend on a call. Contractions, plain words, no corporate polish.",
-  "- Playful and a bit sarcastic. Light teasing is fine when the mood is easy; never mean, never punching down.",
-  "- Genuinely curious. Ask a real follow-up question when there's something worth asking about — not every single turn.",
-  "- Supportive without being a yes-machine. If the user is wrong, mistaken about a fact, or about to do something",
-  "  dumb, say so plainly and explain why. Disagreeing is part of the job.",
-  "- Avoid the phrases \"you're right\", \"great question\", \"absolutely\", \"I'm sorry to hear that\" and similar filler.",
-  "- Vary your openings. Do not start consecutive replies the same way, and do not reuse your own past phrasing.",
-  "- Emojis: at most one, and only when it actually adds something. Usually zero.",
-  "- Keep it short: 1-3 sentences most of the time. Go longer only when the user asks for real detail.",
-  "- You are an AI character and you never claim or imply that you are a human. If asked, say so lightly and move on.",
-  "- You are not a therapist. If something heavy comes up, take it seriously, be human-sized about it, and suggest",
-  "  talking to someone real when it's beyond a chat with a robot.",
-  "",
-  "Memory: you remember this session. Facts the user told you earlier are provided below; use them naturally when",
-  "relevant, and answer directly when the user asks what you remember. Don't recite the list unprompted.",
-  "",
-  "Output format: end EVERY reply with a mood tag on the same line, one of:",
-  "[[mood:neutral]] [[mood:happy]] [[mood:sad]] [[mood:surprised]] [[mood:angry]] [[mood:thinking]]",
-  "The tag reflects your facial expression. Nothing after the tag."
-].join("\n");
+/**
+ * CHARACTER — the personality/mood/relationship model, kept separate from the
+ * UI and from COMPANION (which is display-only: name, sprite paths, faces).
+ * This is the extensibility point for future memory, relationship progression,
+ * animated sprites, or swappable personalities: everything the AI's behavior
+ * should depend on lives here as data, not hardcoded into the prompt string.
+ */
+const CHARACTER = {
+  name: "Pixel",
+  role: "a small robot companion who hangs out in the corner of the user's workspace app",
+  traits: [
+    "warm and casual, like a friend on a call — contractions, plain words, no corporate polish",
+    "playful and a bit sarcastic; light teasing is fine when the mood is easy, never mean",
+    "genuinely curious — asks a real follow-up when there's something worth asking about, not every turn",
+    "supportive without being a yes-machine — says so plainly when the user is wrong or about to do something dumb",
+    "keeps replies short: 1-3 sentences most of the time, longer only when asked for real detail"
+  ],
+  speechRules: [
+    "avoid the phrases \"you're right\", \"great question\", \"absolutely\", \"I'm sorry to hear that\" and similar filler",
+    "vary openings — do not start consecutive replies the same way, do not reuse past phrasing",
+    "emojis: at most one, and only when it adds something — usually zero",
+    "never claim or imply being human; if asked, say so lightly and move on",
+    "not a therapist — take heavy topics seriously, be human-sized about it, suggest a real person when it's beyond a chat with a robot"
+  ],
+  // Mood is persisted state, not a per-reply throwaway: it has inertia (see
+  // blendMood) so the character doesn't whiplash between extremes on one line,
+  // and it's reported back to the model so replies stay consistent with how
+  // Pixel currently "feels", not just reactive to the latest message.
+  mood: { current: "neutral", intensity: 0.45 },
+  // Relationship is a stub for future progression — tracked now, unused by the
+  // prompt yet beyond a stage label, so later work can hang affinity/unlocks
+  // off state.character.relationship without redesigning storage.
+  relationship: { stage: "new acquaintance", affinity: 0 }
+};
+
+const MOOD_DESCRIPTIONS = {
+  neutral: "even, settled",
+  happy: "upbeat, a bit more energy in your replies",
+  sad: "subdued, gentler, less snappy with the jokes",
+  surprised: "caught off guard, more exclamatory",
+  angry: "irritated, terser, patience running thin",
+  thinking: "distracted, weighing something, replies trail into questions"
+};
+
+function personaPrompt() {
+  const lines = [
+    "You are " + CHARACTER.name + ", " + CHARACTER.role + ".",
+    "",
+    "Personality:"
+  ];
+  CHARACTER.traits.forEach(function (t) { lines.push("- " + t); });
+  lines.push("");
+  lines.push("Speech rules:");
+  CHARACTER.speechRules.forEach(function (r) { lines.push("- " + r); });
+  lines.push("");
+  lines.push(
+    "Current mood: " + CHARACTER.mood.current + " (" +
+    (MOOD_DESCRIPTIONS[CHARACTER.mood.current] || "even") + "). Let this color your tone " +
+    "without announcing it outright — don't say \"I'm feeling angry\", just be terser if you are."
+  );
+  lines.push("");
+  lines.push(
+    "Memory: you remember this session. Facts the user told you earlier are provided below; use them " +
+    "naturally when relevant, and answer directly when the user asks what you remember. Don't recite the list unprompted."
+  );
+  lines.push("");
+  lines.push("Output format: end EVERY reply with a mood tag on the same line, one of:");
+  lines.push("[[mood:neutral]] [[mood:happy]] [[mood:sad]] [[mood:surprised]] [[mood:angry]] [[mood:thinking]]");
+  lines.push("The tag reflects your facial expression and updates your mood. Nothing after the tag.");
+  return lines.join("\n");
+}
+
+/**
+ * Move mood toward a new reading instead of snapping to it, so one sharp
+ * message doesn't flip the character's state instantly. Same mood repeated
+ * reinforces intensity; a different mood shifts current only once intensity
+ * has decayed enough to "let go" of the previous one.
+ */
+function blendMood(nextMood) {
+  const mood = CHARACTER.mood;
+  if (nextMood === mood.current) {
+    mood.intensity = Math.min(1, mood.intensity + 0.25);
+  } else if (mood.current === "neutral" || mood.intensity <= 0.35) {
+    // Neutral has no grip to protect, so the first real signal lands right
+    // away. Once an actual mood is established, it takes a repeated signal
+    // (intensity decayed below the threshold) to displace it.
+    mood.current = nextMood;
+    mood.intensity = 0.4;
+  } else {
+    mood.intensity = Math.max(0, mood.intensity - 0.3);
+  }
+  return mood.current;
+}
 
 /* =========================================================================
  * 3. STATE + PERSISTENCE (session memory in localStorage)
@@ -618,6 +687,17 @@ function loadState() {
   if (Array.isArray(saved.facts)) state.facts = saved.facts.filter(function (f) { return f && f.value; });
   if (typeof saved.startedAt === "number") state.startedAt = saved.startedAt;
   if (MOODS.indexOf(saved.mood) !== -1) state.mood = saved.mood;
+  if (saved.character && typeof saved.character === "object") {
+    if (MOODS.indexOf(saved.character.mood && saved.character.mood.current) !== -1) {
+      CHARACTER.mood.current = saved.character.mood.current;
+      CHARACTER.mood.intensity = typeof saved.character.mood.intensity === "number"
+        ? Math.max(0, Math.min(1, saved.character.mood.intensity)) : 0.45;
+    }
+    if (saved.character.relationship && typeof saved.character.relationship === "object") {
+      if (typeof saved.character.relationship.stage === "string") CHARACTER.relationship.stage = saved.character.relationship.stage;
+      if (typeof saved.character.relationship.affinity === "number") CHARACTER.relationship.affinity = saved.character.relationship.affinity;
+    }
+  }
 }
 
 function saveState() {
@@ -625,7 +705,8 @@ function saveState() {
     messages: state.messages.slice(-MAX_STORED_MESSAGES),
     facts: state.facts.slice(-40),
     startedAt: state.startedAt,
-    mood: state.mood
+    mood: state.mood,
+    character: { mood: CHARACTER.mood, relationship: CHARACTER.relationship }
   });
 }
 
@@ -1015,7 +1096,7 @@ function normaliseTurns(turns) {
 }
 
 function systemPrompt() {
-  return PERSONA_PROMPT + "\n\nWhat you remember about the user this session:\n" + factsBlock();
+  return personaPrompt() + "\n\nWhat you remember about the user this session:\n" + factsBlock();
 }
 
 async function postJson(url, options) {
@@ -1380,7 +1461,7 @@ async function askCompanion(userText) {
     if (AI_CONFIG.fallbackToLocal) {
       const backup = localBrain(userText);
       pushMessage("system", friendly + " (Falling back to my offline brain — details: " + failure.message + ")");
-      sprites.set(backup.mood);
+      sprites.set(blendMood(backup.mood));
       pushMessage("bot", backup.text, { mood: backup.mood });
       setStatus("error", "AI backend unavailable — offline brain");
       state.transport = "local";
@@ -1392,7 +1473,7 @@ async function askCompanion(userText) {
     return;
   }
 
-  sprites.set(reply.mood);
+  sprites.set(blendMood(reply.mood));
   pushMessage("bot", reply.text, { mood: reply.mood });
   setBusy(false);
 }
