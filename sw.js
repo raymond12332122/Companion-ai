@@ -1,4 +1,4 @@
-const CACHE_NAME = "pixel-companion-v1";
+const CACHE_NAME = "companion-v2";
 const urlsToCache = [
   "/",
   "/index.html",
@@ -56,6 +56,21 @@ self.addEventListener("fetch", (event) => {
             { headers: { "Content-Type": "application/json" } }
           );
         })
+    );
+    return;
+  }
+
+  // Navigations go to the network first so an updated app is never masked by
+  // a cached shell; the cache is only the offline safety net.
+  if (event.request.mode === "navigate" || event.request.destination === "document") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((hit) => hit || caches.match("/index.html")))
     );
     return;
   }

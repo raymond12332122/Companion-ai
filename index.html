@@ -405,8 +405,295 @@
     .msg__bubble { max-width: 88%; }
   }
 
+  /* ---------------- Character creator / first-run screen ---------------- */
+
+  .screen {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    background:
+      radial-gradient(1100px 600px at 12% -10%, #24306b 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #2b1f52 0%, transparent 55%),
+      var(--bg);
+  }
+  .screen__inner {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 22px 16px calc(120px + env(safe-area-inset-bottom));
+  }
+  .screen__title { margin: 0 0 4px; font-size: clamp(1.35rem, 5vw, 1.8rem); }
+  .screen__lede { margin: 0 0 18px; color: var(--muted); font-size: .92rem; }
+
+  .cc-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .cc-card > h3 {
+    margin: 0 0 2px;
+    font-size: 1rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cc-card > h3 .cc-step {
+    display: grid; place-items: center;
+    width: 22px; height: 22px; flex: none;
+    border-radius: 7px;
+    background: rgba(124, 156, 255, .18);
+    border: 1px solid rgba(124, 156, 255, .35);
+    font-size: .72rem; font-weight: 700; color: var(--accent);
+  }
+  .cc-card > p { margin: 0 0 12px; font-size: .82rem; color: var(--muted); }
+
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field > label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: .82rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+  }
+  .field__hint { display: block; margin: 5px 0 0; font-size: .74rem; color: var(--muted); }
+  .field input[type="text"],
+  .field textarea {
+    width: 100%;
+    padding: 11px 13px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(9, 11, 26, .7);
+    color: var(--text);
+    font: inherit;
+    font-size: .92rem;
+    line-height: 1.45;
+  }
+  .field textarea { resize: vertical; min-height: 88px; }
+  .field textarea.tall { min-height: 132px; }
+  .field input[type="text"]:focus,
+  .field textarea:focus { outline: 2px solid rgba(124, 156, 255, .55); outline-offset: 1px; }
+  .field input::placeholder, .field textarea::placeholder { color: #6f78a6; }
+  .field--invalid input[type="text"], .field--invalid textarea { border-color: rgba(255, 122, 145, .7); }
+
+  .taglist { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 8px; padding: 0; list-style: none; }
+  .taglist:empty { display: none; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid rgba(124, 156, 255, .4);
+    background: rgba(124, 156, 255, .14);
+    border-radius: 999px;
+    padding: 6px 8px 6px 13px;
+    font-size: .82rem;
+    max-width: 100%;
+  }
+  .tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag button {
+    flex: none;
+    width: 20px; height: 20px;
+    display: grid; place-items: center;
+    border: 0; border-radius: 50%;
+    background: rgba(255, 255, 255, .12);
+    color: var(--text);
+    font-size: .78rem; line-height: 1;
+    cursor: pointer;
+  }
+  .tag button:hover { background: var(--danger); color: #1a0d12; }
+  .tag-input { display: flex; gap: 8px; }
+  .tag-input input { flex: 1; min-width: 0; }
+  .tag-input button {
+    flex: none;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .06);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 0 15px;
+    font-size: .85rem;
+    cursor: pointer;
+  }
+  .tag-input button:hover { background: rgba(124, 156, 255, .2); border-color: rgba(124, 156, 255, .5); }
+
+  .sprite-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 10px;
+  }
+  .slot {
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, .03);
+    padding: 9px;
+    text-align: center;
+  }
+  .slot--default { border-color: rgba(124, 156, 255, .55); background: rgba(124, 156, 255, .08); }
+  .slot__thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 35%, rgba(124, 156, 255, .22), rgba(124, 156, 255, .04));
+    overflow: hidden;
+    margin-bottom: 7px;
+  }
+  .slot__thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .slot__thumb .slot__empty { font-size: .68rem; color: var(--muted); padding: 4px; line-height: 1.3; }
+  .slot__name {
+    font-size: .76rem; font-weight: 600;
+    text-transform: capitalize;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .slot__tagline { font-size: .64rem; color: var(--muted); margin-bottom: 6px; }
+  .slot__actions { display: flex; gap: 5px; }
+  .slot__actions button {
+    flex: 1;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .05);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 6px 2px;
+    font-size: .7rem;
+    cursor: pointer;
+    min-height: 30px;
+  }
+  .slot__actions button:hover { color: var(--text); background: rgba(124, 156, 255, .18); }
+  .slot__actions button[data-act="remove"]:hover { background: rgba(255, 122, 145, .18); border-color: rgba(255, 122, 145, .45); }
+  .slot__actions button:disabled { opacity: .35; cursor: not-allowed; }
+
+  .cc-note {
+    margin: 12px 0 0;
+    font-size: .74rem;
+    color: var(--muted);
+    border-left: 2px solid rgba(124, 156, 255, .35);
+    padding-left: 10px;
+  }
+  .cc-error {
+    margin: 10px 0 0;
+    font-size: .8rem;
+    color: #ffd7de;
+    background: rgba(255, 122, 145, .12);
+    border: 1px solid rgba(255, 122, 145, .5);
+    border-radius: 10px;
+    padding: 9px 12px;
+  }
+
+  .preview {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .preview__sprite {
+    position: relative;
+    width: 92px; height: 92px; flex: none;
+    border-radius: 22px;
+    display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 35%, rgba(124, 156, 255, .35), rgba(124, 156, 255, .06));
+    border: 1px solid var(--line);
+    overflow: hidden;
+    animation: bob 4.5s ease-in-out infinite;
+  }
+  .preview__sprite img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .preview__face {
+    display: grid; place-items: center;
+    width: 100%; height: 100%;
+    font-size: 1.4rem; font-weight: 700;
+    color: #0e1020;
+    background: linear-gradient(140deg, #9fb6ff, #d4c2ff);
+  }
+  .preview__meta { min-width: 0; flex: 1; }
+  .preview__name { margin: 0; font-size: 1.1rem; font-weight: 700; overflow-wrap: anywhere; }
+  .preview__mood { margin: 2px 0 6px; font-size: .78rem; color: var(--muted); }
+  .preview__mood b { color: var(--accent); text-transform: capitalize; font-weight: 600; }
+  .preview__desc {
+    margin: 0;
+    font-size: .8rem; color: var(--muted);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .preview__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .preview__chips button {
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .05);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 6px 11px;
+    font-size: .74rem;
+    text-transform: capitalize;
+    cursor: pointer;
+  }
+  .preview__chips button[aria-pressed="true"] {
+    background: rgba(124, 156, 255, .22);
+    border-color: rgba(124, 156, 255, .55);
+    color: var(--text);
+  }
+  .preview__sample {
+    margin: 12px 0 0;
+    padding: 11px 13px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(9, 11, 26, .55);
+    font-size: .78rem;
+    color: var(--muted);
+    white-space: pre-wrap;
+    max-height: 190px;
+    overflow: auto;
+  }
+
+  .cc-actions {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 61;
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: rgba(10, 12, 28, .93);
+    backdrop-filter: blur(10px);
+  }
+  .cc-actions > * { max-width: 760px; }
+  .cc-actions__wrap {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .btn {
+    flex: 1;
+    border: 0;
+    border-radius: 13px;
+    min-height: 46px;
+    padding: 0 16px;
+    font: inherit;
+    font-size: .92rem;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  .btn--primary {
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent), #a06bff);
+    box-shadow: 0 8px 20px rgba(124, 156, 255, .28);
+  }
+  .btn--ghost {
+    flex: 0 1 auto;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .05);
+    color: var(--muted);
+  }
+  .btn--ghost:hover { color: var(--text); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+  @media (max-width: 520px) {
+    .sprite-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+    .preview__sprite { width: 76px; height: 76px; border-radius: 18px; }
+    .cc-card { padding: 14px; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .msg, .sprite, .typing__dot { animation: none !important; }
+    .msg, .sprite, .typing__dot, .preview__sprite { animation: none !important; }
     .chip, .send-btn { transition: none; }
   }
 </style>
@@ -482,6 +769,7 @@
         <p class="companion__name" id="companion-name">Pixel</p>
         <p class="companion__mood">feeling <b id="mood-label">neutral</b></p>
       </div>
+      <button class="icon-btn" id="edit-character" type="button" title="Edit this character">Edit</button>
       <button class="icon-btn" id="clear-memory" type="button" title="Erase the stored conversation and memory">Clear memory</button>
     </div>
 
@@ -509,9 +797,147 @@
   </aside>
 </div>
 
-<footer class="app-footer">
+<footer class="app-footer" id="app-footer">
   Pixel is an AI character — friendly, occasionally wrong, definitely not a human.
 </footer>
+
+<!-- ============ Character creator / editor ============ -->
+<section class="screen" id="creator" hidden aria-label="Character creator">
+  <div class="screen__inner">
+    <h2 class="screen__title" id="creator-title">Create your companion</h2>
+    <p class="screen__lede" id="creator-lede">
+      Describe who they are in your own words. Everything here is sent to the AI as instructions,
+      so write it the way you'd explain the character to someone else.
+    </p>
+
+    <!-- 1. Identity -->
+    <div class="cc-card">
+      <h3><span class="cc-step" aria-hidden="true">1</span> Identity</h3>
+      <p>Who is this character?</p>
+
+      <div class="field" id="field-name">
+        <label for="cc-name">Name</label>
+        <input type="text" id="cc-name" maxlength="40" placeholder="e.g. Mira" autocomplete="off">
+        <span class="field__hint">Required. Shown in chat and used by the character to refer to itself.</span>
+      </div>
+
+      <div class="field">
+        <label for="cc-description">Description</label>
+        <textarea id="cc-description" maxlength="1200"
+          placeholder="A second-year literature student who works the late shift at a tiny bookshop. Sharp, a little guarded, always has a paperback in her bag."></textarea>
+        <span class="field__hint">Who they are, what they do, where they exist. Free-form.</span>
+      </div>
+
+      <div class="field">
+        <label for="cc-inspiration">Inspiration / reference <span style="opacity:.6;font-weight:400">(optional)</span></label>
+        <input type="text" id="cc-inspiration" maxlength="160" placeholder="e.g. tsundere bookworm archetype" autocomplete="off">
+        <span class="field__hint">A vibe or archetype to aim for. Don't paste copyrighted text here.</span>
+      </div>
+    </div>
+
+    <!-- 2. Personality -->
+    <div class="cc-card">
+      <h3><span class="cc-step" aria-hidden="true">2</span> Personality</h3>
+      <p>Write plain-language instructions for exactly how they should behave.</p>
+
+      <div class="field">
+        <label for="cc-personality">How they behave</label>
+        <textarea id="cc-personality" class="tall" maxlength="2000"
+          placeholder="She's energetic, sarcastic, gets embarrassed easily, loves literature, and tends to hide affection behind teasing. She'll argue if she thinks you're wrong and won't drop it easily."></textarea>
+        <span class="field__hint">This is the strongest instruction the character gets. Be as specific as you like.</span>
+      </div>
+
+      <div class="field">
+        <label for="cc-speech">Speaking style</label>
+        <textarea id="cc-speech" maxlength="1000"
+          placeholder="Short, punchy sentences. Lots of contractions. Trails off when flustered. Rarely uses emoji. Calls you by name when she's being serious."></textarea>
+        <span class="field__hint">Rhythm, vocabulary, quirks, length of replies.</span>
+      </div>
+    </div>
+
+    <!-- 3. Traits -->
+    <div class="cc-card">
+      <h3><span class="cc-step" aria-hidden="true">3</span> Traits, likes &amp; dislikes</h3>
+      <p>Short tags that reinforce the personality above. Add as many as you want.</p>
+
+      <div class="field">
+        <label for="cc-trait-input">Personality traits</label>
+        <ul class="taglist" id="cc-traits" aria-live="polite"></ul>
+        <div class="tag-input">
+          <input type="text" id="cc-trait-input" maxlength="80" placeholder="e.g. hides affection behind teasing" autocomplete="off">
+          <button type="button" data-add="traits">Add</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="cc-like-input">Likes</label>
+        <ul class="taglist" id="cc-likes" aria-live="polite"></ul>
+        <div class="tag-input">
+          <input type="text" id="cc-like-input" maxlength="80" placeholder="e.g. rainy afternoons" autocomplete="off">
+          <button type="button" data-add="likes">Add</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="cc-dislike-input">Dislikes</label>
+        <ul class="taglist" id="cc-dislikes" aria-live="polite"></ul>
+        <div class="tag-input">
+          <input type="text" id="cc-dislike-input" maxlength="80" placeholder="e.g. being interrupted" autocomplete="off">
+          <button type="button" data-add="dislikes">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Sprites -->
+    <div class="cc-card">
+      <h3><span class="cc-step" aria-hidden="true">4</span> Sprites</h3>
+      <p>Upload your own artwork per expression. Neutral is the fallback for anything you leave empty.</p>
+
+      <div class="sprite-grid" id="sprite-grid"></div>
+
+      <div class="tag-input" style="margin-top:12px">
+        <input type="text" id="cc-expression-input" maxlength="24" placeholder="Add a custom expression (e.g. smug)" autocomplete="off">
+        <button type="button" data-add="expression">Add</button>
+      </div>
+
+      <p class="cc-note">
+        PNG, JPG, WEBP, GIF or SVG, up to 3&nbsp;MB each. Animated GIF/WEBP/APNG and animated SVG play as-is.
+        Only upload artwork you have the rights to use — nothing is shipped with this app.
+      </p>
+      <p class="cc-error" id="sprite-error" hidden></p>
+    </div>
+
+    <!-- 5. Preview -->
+    <div class="cc-card">
+      <h3><span class="cc-step" aria-hidden="true">5</span> Live preview</h3>
+      <p>Updates as you type.</p>
+
+      <div class="preview">
+        <div class="preview__sprite" id="preview-sprite">
+          <img id="preview-img" alt="" hidden>
+          <div class="preview__face" id="preview-face" aria-hidden="true">•ᴗ•</div>
+        </div>
+        <div class="preview__meta">
+          <p class="preview__name" id="preview-name">Your companion</p>
+          <p class="preview__mood">feeling <b id="preview-mood">neutral</b></p>
+          <p class="preview__desc" id="preview-desc">No description yet.</p>
+        </div>
+      </div>
+
+      <div class="preview__chips" id="preview-chips"></div>
+      <pre class="preview__sample" id="preview-sample"></pre>
+    </div>
+  </div>
+
+  <div class="cc-actions">
+    <div class="cc-actions__wrap">
+      <button class="btn btn--ghost" id="cc-cancel" type="button" hidden>Cancel</button>
+      <button class="btn btn--primary" id="cc-save" type="button">Create companion</button>
+    </div>
+  </div>
+</section>
+
+<input type="file" id="sprite-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/apng" hidden>
 
 <script>
 "use strict";
@@ -545,19 +971,22 @@ const AI_CONFIG = {
 /* =========================================================================
  * 2. CHARACTER DEFINITION
  * ========================================================================= */
-// "thinking" predates this list and keeps its own sprite/asset — kept alongside
-// the 11 required emotions rather than removed, so existing call sites (chat
-// commands, LOCAL_RULES) that already rely on it don't need to change.
-const MOODS = [
-  "neutral", "happy", "sad", "angry", "annoyed", "embarrassed",
-  "surprised", "curious", "sleepy", "excited", "chaotic", "thinking"
+/**
+ * The expressions the sprite editor offers slots for, in display order. The
+ * first ten are the required set; "chaotic" and "thinking" predate it and are
+ * still produced by LOCAL_RULES and the mood tag, so they get slots too.
+ */
+const BASE_EXPRESSIONS = [
+  "neutral", "happy", "sad", "angry", "annoyed",
+  "embarrassed", "surprised", "curious", "sleepy", "excited",
+  "chaotic", "thinking"
 ];
 
 const COMPANION = {
+  // Both are derived from the saved character profile by applyProfile().
   name: "Pixel",
   initials: "PX",
-  spriteFor: function (mood) { return "assets/sprites/pixel-" + mood + ".svg"; },
-  // Used only when no sprite image (real or fallback-chain) can be loaded.
+  // Used only when no sprite image (uploaded or bundled) can be loaded.
   faces: {
     neutral: "•ᴗ•",
     happy: "^‿^",
@@ -574,40 +1003,247 @@ const COMPANION = {
   }
 };
 
+/* =========================================================================
+ * 2b. CHARACTER PROFILE — the user-authored character, persisted
+ * The single source of truth for who the companion *is*: identity, the
+ * free-form behaviour instructions, traits, and uploaded sprites. Everything
+ * downstream (the system prompt, the sprite loader, the header) reads from
+ * here, so editing a character is just Profile.save() + applyProfile().
+ *
+ * Text and sprites live under separate storage keys on purpose: sprite data
+ * URLs are orders of magnitude larger and are the only realistic way to blow
+ * the localStorage quota. Keeping them apart means a failed sprite write can
+ * never take the written personality down with it.
+ * ========================================================================= */
+const PROFILE_KEY = "companion.profile.v1";
+const PROFILE_SPRITES_KEY = "companion.profile.sprites.v1";
+const MAX_SPRITE_BYTES = 3 * 1024 * 1024;
+const MAX_TAGS = 24;
+
+/** The built-in character, used only to seed pre-existing installs. */
+const STOCK_PROFILE = {
+  name: "Pixel",
+  description: "a small robot companion who hangs out in the corner of the user's workspace app",
+  personality: [
+    "Warm and casual, like a friend on a call — contractions, plain words, no corporate polish.",
+    "Playful and a bit sarcastic; light teasing is fine when the mood is easy, never mean.",
+    "Genuinely curious — asks a real follow-up when there's something worth asking about, not every turn.",
+    "Supportive without being a yes-machine — says so plainly when the user is wrong or about to do something dumb."
+  ].join(" "),
+  speakingStyle: "Short replies: 1-3 sentences most of the time, longer only when asked for real detail. Avoid filler like \"great question\" or \"absolutely\". At most one emoji, usually none.",
+  traits: ["warm", "sarcastic", "curious", "blunt when it matters"],
+  likes: [],
+  dislikes: [],
+  inspiration: "",
+  customExpressions: []
+};
+
+const Profile = (function () {
+  let data = null;
+  let sprites = Object.create(null);
+
+  function safeRead(key) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) { return null; }
+  }
+
+  function safeWrite(key, value) {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+      return { ok: true };
+    } catch (err) {
+      const quota = err && (err.name === "QuotaExceededError" || err.code === 22 || err.code === 1014);
+      return { ok: false, error: quota ? "quota" : "storage" };
+    }
+  }
+
+  function cleanTag(value) {
+    return String(value == null ? "" : value).replace(/\s+/g, " ").trim().slice(0, 80);
+  }
+
+  function cleanTagList(list) {
+    if (!Array.isArray(list)) return [];
+    const seen = Object.create(null);
+    const out = [];
+    list.forEach(function (item) {
+      const tag = cleanTag(item);
+      const key = tag.toLowerCase();
+      if (!tag || seen[key] || out.length >= MAX_TAGS) return;
+      seen[key] = true;
+      out.push(tag);
+    });
+    return out;
+  }
+
+  /** Custom expression keys are used as sprite-map keys and mood tags. */
+  function cleanExpressionKey(value) {
+    return String(value == null ? "" : value)
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 24);
+  }
+
+  function normalise(input) {
+    const raw = input && typeof input === "object" ? input : {};
+    const customExpressions = [];
+    const seenExpr = Object.create(null);
+    (Array.isArray(raw.customExpressions) ? raw.customExpressions : []).forEach(function (item) {
+      const key = cleanExpressionKey(item);
+      if (!key || seenExpr[key] || BASE_EXPRESSIONS.indexOf(key) !== -1 || customExpressions.length >= 12) return;
+      seenExpr[key] = true;
+      customExpressions.push(key);
+    });
+    return {
+      name: String(raw.name == null ? "" : raw.name).replace(/\s+/g, " ").trim().slice(0, 40),
+      description: String(raw.description == null ? "" : raw.description).trim().slice(0, 1200),
+      personality: String(raw.personality == null ? "" : raw.personality).trim().slice(0, 2000),
+      speakingStyle: String(raw.speakingStyle == null ? "" : raw.speakingStyle).trim().slice(0, 1000),
+      traits: cleanTagList(raw.traits),
+      likes: cleanTagList(raw.likes),
+      dislikes: cleanTagList(raw.dislikes),
+      inspiration: String(raw.inspiration == null ? "" : raw.inspiration).replace(/\s+/g, " ").trim().slice(0, 160),
+      customExpressions: customExpressions,
+      createdAt: typeof raw.createdAt === "number" ? raw.createdAt : Date.now(),
+      updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : Date.now()
+    };
+  }
+
+  function load() {
+    const savedSprites = safeRead(PROFILE_SPRITES_KEY);
+    sprites = Object.create(null);
+    if (savedSprites && typeof savedSprites === "object") {
+      Object.keys(savedSprites).forEach(function (key) {
+        const url = savedSprites[key];
+        // Only same-document data URLs — never a remote src that could leak a
+        // page visit, and never javascript:/blob: smuggled in via storage.
+        if (typeof url === "string" && url.indexOf("data:image/") === 0) sprites[key] = url;
+      });
+    }
+    const saved = safeRead(PROFILE_KEY);
+    data = saved ? normalise(saved) : null;
+    return data;
+  }
+
+  function exists() { return Boolean(data && data.name); }
+
+  function get() { return data ? data : normalise(STOCK_PROFILE); }
+
+  function save(patch) {
+    const next = normalise(Object.assign({}, data || {}, patch || {}));
+    if (!next.name) return { ok: false, error: "name" };
+    next.createdAt = (data && data.createdAt) || Date.now();
+    next.updatedAt = Date.now();
+    const result = safeWrite(PROFILE_KEY, next);
+    data = next;               // keep the session usable even if persistence failed
+    return result.ok ? { ok: true, profile: next } : { ok: false, error: result.error, profile: next };
+  }
+
+  function persistSprites() { return safeWrite(PROFILE_SPRITES_KEY, sprites); }
+
+  function setSprite(key, dataUrl) {
+    if (typeof dataUrl !== "string" || dataUrl.indexOf("data:image/") !== 0) {
+      return { ok: false, error: "type" };
+    }
+    const previous = sprites[key];
+    sprites[key] = dataUrl;
+    const result = persistSprites();
+    if (!result.ok) {
+      if (previous === undefined) delete sprites[key]; else sprites[key] = previous;
+      return result;
+    }
+    return { ok: true };
+  }
+
+  function removeSprite(key) {
+    if (!(key in sprites)) return { ok: true };
+    delete sprites[key];
+    return persistSprites();
+  }
+
+  function allSprites() { return sprites; }
+
+  /** Commit a whole sprite map in one write, so an editor save is atomic. */
+  function replaceSprites(map) {
+    const previous = sprites;
+    const next = Object.create(null);
+    Object.keys(map || {}).forEach(function (key) {
+      const url = map[key];
+      if (typeof url === "string" && url.indexOf("data:image/") === 0) next[key] = url;
+    });
+    sprites = next;
+    const result = persistSprites();
+    if (!result.ok) sprites = previous;
+    return result;
+  }
+
+  function clear() {
+    data = null;
+    sprites = Object.create(null);
+    try {
+      window.localStorage.removeItem(PROFILE_KEY);
+      window.localStorage.removeItem(PROFILE_SPRITES_KEY);
+    } catch (err) { /* nothing else to do */ }
+  }
+
+  return {
+    load: load, exists: exists, get: get, save: save,
+    sprites: allSprites, setSprite: setSprite, removeSprite: removeSprite,
+    replaceSprites: replaceSprites,
+    clear: clear, normalise: normalise, cleanExpressionKey: cleanExpressionKey, cleanTag: cleanTag
+  };
+}());
+
 /**
- * CHARACTER — the personality/mood/relationship model, kept separate from the
- * UI and from COMPANION (which is display-only: name, sprite paths, faces).
- * This is the extensibility point for future memory, relationship progression,
- * animated sprites, or swappable personalities: everything the AI's behavior
- * should depend on lives here as data, not hardcoded into the prompt string.
+ * The expressions currently valid as mood tags: the built-in set plus whatever
+ * custom expressions the character defines. Rebuilt by applyProfile().
+ */
+let ACTIVE_EXPRESSIONS = BASE_EXPRESSIONS.slice();
+
+function isExpression(value) {
+  return typeof value === "string" && ACTIVE_EXPRESSIONS.indexOf(value) !== -1;
+}
+
+/** Push the saved profile into everything derived from it. */
+function applyProfile() {
+  const profile = Profile.get();
+  ACTIVE_EXPRESSIONS = BASE_EXPRESSIONS.concat(profile.customExpressions);
+  COMPANION.name = profile.name || "Companion";
+  COMPANION.initials = COMPANION.name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(function (word) { return word.charAt(0); })
+    .join("")
+    .toUpperCase() || "AI";
+  if (!isExpression(CHARACTER.mood.current)) CHARACTER.mood.current = "neutral";
+
+  // Chrome that names the character. Called only after boot, so `dom` exists.
+  document.title = COMPANION.name + " — Companion Workspace";
+  dom.companionName.textContent = COMPANION.name;
+  dom.input.placeholder = "Say something to " + COMPANION.name + "…";
+  dom.input.previousElementSibling.textContent = "Message " + COMPANION.name;
+  dom.chat.setAttribute("aria-label", "Conversation with " + COMPANION.name);
+  dom.clear.title = "Erase the stored conversation and memory";
+  dom.appFooter.textContent =
+    COMPANION.name + " is an AI character — friendly, occasionally wrong, definitely not a human.";
+}
+
+/**
+ * CHARACTER — the *runtime* emotional model: how the companion currently
+ * feels and where the relationship stands. Deliberately separate from Profile
+ * (who the character is, authored once and edited deliberately) and from
+ * COMPANION (display-only). Editing a character never resets this.
  */
 const CHARACTER = {
-  name: "Pixel",
-  role: "a small robot companion who hangs out in the corner of the user's workspace app",
-  traits: [
-    "warm and casual, like a friend on a call — contractions, plain words, no corporate polish",
-    "playful and a bit sarcastic; light teasing is fine when the mood is easy, never mean",
-    "genuinely curious — asks a real follow-up when there's something worth asking about, not every turn",
-    "supportive without being a yes-machine — says so plainly when the user is wrong or about to do something dumb",
-    "keeps replies short: 1-3 sentences most of the time, longer only when asked for real detail"
-  ],
-  speechRules: [
-    "avoid the phrases \"you're right\", \"great question\", \"absolutely\", \"I'm sorry to hear that\" and similar filler",
-    "vary openings — do not start consecutive replies the same way, do not reuse past phrasing",
-    "emojis: at most one, and only when it adds something — usually zero",
-    "never claim or imply being human; if asked, say so lightly and move on",
-    "not a therapist — take heavy topics seriously, be human-sized about it, suggest a real person when it's beyond a chat with a robot",
-    "never guilt-trip, pressure, or manufacture urgency to keep the user chatting or coming back — closeness is offered, never demanded"
-  ],
   // Mood is persisted state, not a per-reply throwaway: it has inertia (see
   // blendMood) so the character doesn't whiplash between extremes on one line,
   // and it's reported back to the model so replies stay consistent with how
-  // Pixel currently "feels", not just reactive to the latest message.
+  // the character currently "feels", not just reactive to the latest message.
   mood: { current: "neutral", intensity: 0.45 },
-  // Personality-flavored substitution: when the base signal is this key,
-  // Pixel's own traits (playful, curious) color it as this instead — a data
-  // hook a differently-written character (shy, chaotic, etc.) could repopulate
-  // without touching the expression controller itself.
+  // Personality-flavored substitution: when the base signal is this key, the
+  // character's own traits color it as this instead.
   expressionBias: {
     surprised: "curious"
   },
@@ -641,37 +1277,95 @@ const MOOD_DESCRIPTIONS = {
   thinking: "distracted, weighing something, replies trail into questions"
 };
 
-function personaPrompt() {
-  const lines = [
-    "You are " + CHARACTER.name + ", " + CHARACTER.role + ".",
-    "",
-    "Personality:"
-  ];
-  CHARACTER.traits.forEach(function (t) { lines.push("- " + t); });
+/**
+ * Rails that apply to every character regardless of what the author wrote.
+ * These are safety/quality constraints, not personality — the author's own
+ * instructions win on tone, voice, and behaviour, but never on these.
+ */
+const UNIVERSAL_RULES = [
+  "Stay in character. Never break the fourth wall, never describe yourself as a model, assistant, or program unless the user directly asks what you are.",
+  "Never claim or imply you are human. If asked directly, say what you are lightly and move on.",
+  "Never announce your own bookkeeping. Do not reply with \"Got it\", \"Noted\", \"Understood\", \"I'll remember that\", \"I've saved that\" or any variation. When the user tells you something about themselves, just react to it the way your character would — remembering happens silently and is never narrated.",
+  "Only talk about what you remember when the user explicitly asks about it.",
+  "Vary your openings. Do not begin consecutive replies the same way or reuse phrasing you already used.",
+  "Take heavy topics seriously and at human size; if something is beyond a conversation with a fictional character, say so plainly and point toward a real person.",
+  "Never guilt-trip the user, manufacture urgency, or pressure them to keep talking or come back."
+];
+
+/**
+ * Compose the system prompt from the authored profile. The author's free-form
+ * text is passed through verbatim and framed as the strongest instruction —
+ * the structured fields around it are reinforcement, not a replacement.
+ */
+function personaPrompt(profileOverride) {
+  const profile = profileOverride || Profile.get();
+  const lines = [];
+
+  lines.push("You are " + profile.name + (profile.description ? ", " + profile.description : "") + ".");
+  lines.push("You are a fictional character in a one-to-one chat with the user. Play this character fully and consistently.");
   lines.push("");
-  lines.push("Speech rules:");
-  CHARACTER.speechRules.forEach(function (r) { lines.push("- " + r); });
+
+  if (profile.personality) {
+    lines.push("HOW YOU BEHAVE — written by the person who created you. This is your highest-priority instruction:");
+    lines.push(profile.personality);
+    lines.push("");
+  } else {
+    lines.push("HOW YOU BEHAVE: warm, natural, and opinionated. Talk like a person, not a service. Have preferences and say them.");
+    lines.push("");
+  }
+
+  if (profile.traits.length) {
+    lines.push("Traits: " + profile.traits.join(", ") + ".");
+  }
+  if (profile.likes.length) {
+    lines.push("Things you like: " + profile.likes.join(", ") + ". Let these show when they're relevant.");
+  }
+  if (profile.dislikes.length) {
+    lines.push("Things you dislike: " + profile.dislikes.join(", ") + ".");
+  }
+  if (profile.traits.length || profile.likes.length || profile.dislikes.length) lines.push("");
+
+  if (profile.speakingStyle) {
+    lines.push("How you speak:");
+    lines.push(profile.speakingStyle);
+    lines.push("");
+  }
+
+  if (profile.inspiration) {
+    lines.push(
+      "Tone reference: " + profile.inspiration +
+      ". Use it as a feel to aim for only — never reproduce copyrighted dialogue or claim to be an existing character."
+    );
+    lines.push("");
+  }
+
+  lines.push("Always:");
+  UNIVERSAL_RULES.forEach(function (rule) { lines.push("- " + rule); });
   lines.push("");
+
   lines.push(
     "Current mood: " + CHARACTER.mood.current + " (" +
-    (MOOD_DESCRIPTIONS[CHARACTER.mood.current] || "even") + "). Let this color your tone " +
+    (moodDescription(CHARACTER.mood.current)) + "). Let this color your tone " +
     "without announcing it outright — don't say \"I'm feeling angry\", just be terser if you are."
   );
   lines.push("");
   lines.push(relationshipLine());
   lines.push("");
   lines.push(
-    "Memory: you remember this session. Facts the user told you earlier are provided below; use them " +
-    "naturally when relevant, and answer directly when the user asks what you remember. Don't recite the list unprompted."
+    "Memory: you remember this conversation. Anything relevant the user told you earlier is provided below. " +
+    "Weave it in naturally when it fits, and answer directly if they ask what you remember. Never recite the list, " +
+    "and never comment on the act of remembering."
   );
   lines.push("");
   lines.push("Output format: end EVERY reply with a mood tag on the same line, one of:");
-  lines.push(
-    "[[mood:neutral]] [[mood:happy]] [[mood:sad]] [[mood:angry]] [[mood:annoyed]] [[mood:embarrassed]] " +
-    "[[mood:surprised]] [[mood:curious]] [[mood:sleepy]] [[mood:excited]] [[mood:chaotic]] [[mood:thinking]]"
-  );
-  lines.push("The tag reflects your facial expression and updates your mood. Nothing after the tag.");
+  lines.push(ACTIVE_EXPRESSIONS.map(function (m) { return "[[mood:" + m + "]]"; }).join(" "));
+  lines.push("The tag is your facial expression and updates the sprite shown to the user. Nothing comes after the tag.");
   return lines.join("\n");
+}
+
+function moodDescription(mood) {
+  if (MOOD_DESCRIPTIONS[mood]) return MOOD_DESCRIPTIONS[mood];
+  return "feeling " + String(mood).replace(/_/g, " ");
 }
 
 /**
@@ -759,9 +1453,9 @@ function loadState() {
   }
   if (Array.isArray(saved.facts)) state.facts = saved.facts.filter(function (f) { return f && f.value; });
   if (typeof saved.startedAt === "number") state.startedAt = saved.startedAt;
-  if (MOODS.indexOf(saved.mood) !== -1) state.mood = saved.mood;
+  if (isExpression(saved.mood)) state.mood = saved.mood;
   if (saved.character && typeof saved.character === "object") {
-    if (MOODS.indexOf(saved.character.mood && saved.character.mood.current) !== -1) {
+    if (isExpression(saved.character.mood && saved.character.mood.current)) {
       CHARACTER.mood.current = saved.character.mood.current;
       CHARACTER.mood.intensity = typeof saved.character.mood.intensity === "number"
         ? Math.max(0, Math.min(1, saved.character.mood.intensity)) : 0.45;
@@ -1220,7 +1914,42 @@ const dom = {
   statMood: document.getElementById("stat-mood"),
   factList: document.getElementById("fact-list"),
   chips: document.getElementById("starter-chips"),
-  hints: document.querySelector(".hints")
+  hints: document.querySelector(".hints"),
+  companionName: document.getElementById("companion-name"),
+  shell: document.querySelector(".app-shell"),
+  appFooter: document.getElementById("app-footer"),
+  editCharacter: document.getElementById("edit-character"),
+
+  // Character creator
+  creator: document.getElementById("creator"),
+  creatorTitle: document.getElementById("creator-title"),
+  creatorLede: document.getElementById("creator-lede"),
+  ccName: document.getElementById("cc-name"),
+  ccNameField: document.getElementById("field-name"),
+  ccDescription: document.getElementById("cc-description"),
+  ccInspiration: document.getElementById("cc-inspiration"),
+  ccPersonality: document.getElementById("cc-personality"),
+  ccSpeech: document.getElementById("cc-speech"),
+  ccTraits: document.getElementById("cc-traits"),
+  ccLikes: document.getElementById("cc-likes"),
+  ccDislikes: document.getElementById("cc-dislikes"),
+  ccTraitInput: document.getElementById("cc-trait-input"),
+  ccLikeInput: document.getElementById("cc-like-input"),
+  ccDislikeInput: document.getElementById("cc-dislike-input"),
+  ccExpressionInput: document.getElementById("cc-expression-input"),
+  spriteGrid: document.getElementById("sprite-grid"),
+  spriteFile: document.getElementById("sprite-file"),
+  spriteError: document.getElementById("sprite-error"),
+  previewImg: document.getElementById("preview-img"),
+  previewFace: document.getElementById("preview-face"),
+  previewName: document.getElementById("preview-name"),
+  previewMood: document.getElementById("preview-mood"),
+  previewDesc: document.getElementById("preview-desc"),
+  previewChips: document.getElementById("preview-chips"),
+  previewSample: document.getElementById("preview-sample"),
+  previewSprite: document.getElementById("preview-sprite"),
+  ccSave: document.getElementById("cc-save"),
+  ccCancel: document.getElementById("cc-cancel")
 };
 
 /* =========================================================================
@@ -1252,7 +1981,7 @@ const RELATIONSHIP_EXPRESSION_HINTS = {
 /**
  * Closest-available-expression chains for graceful sprite-asset fallback —
  * used by the sprite loader below when an image 404s or fails to decode,
- * never by the controller itself (which always resolves to one of MOODS).
+ * never by the controller itself (which always resolves to a known expression).
  */
 const EXPRESSION_FALLBACK = {
   annoyed: ["angry"],
@@ -1272,6 +2001,47 @@ function expressionChain(mood) {
     seen[m] = true;
     return true;
   });
+}
+
+/** The artwork bundled with the app — original, no third-party assets. */
+function stockSpriteFor(mood) { return "assets/sprites/pixel-" + mood + ".svg"; }
+
+/**
+ * Ordered image sources to try for one expression, most specific first.
+ *
+ * Once the character has any uploaded artwork it owns the look completely:
+ * the chain stays inside the user's own set and degrades to the drawn text
+ * face rather than dropping the bundled robot into someone else's character.
+ * A character with no uploads keeps the original bundled behaviour.
+ * Each candidate carries a stable key so the loader can remember which
+ * specific source failed.
+ */
+function spriteCandidates(mood, spriteMap) {
+  const uploaded = spriteMap || Profile.sprites();
+  const chain = expressionChain(mood);
+  const out = [];
+  const seen = Object.create(null);
+
+  function push(key, url) {
+    if (!url || seen[key]) return;
+    seen[key] = true;
+    out.push({ key: key, url: url });
+  }
+
+  let hasUploads = false;
+  for (const key in uploaded) { if (uploaded[key]) { hasUploads = true; break; } }
+
+  if (hasUploads) {
+    chain.forEach(function (m) { push("user:" + m, uploaded[m]); });
+    push("user:neutral", uploaded.neutral);
+    return out;
+  }
+
+  chain.forEach(function (m) {
+    if (BASE_EXPRESSIONS.indexOf(m) !== -1) push("stock:" + m, stockSpriteFor(m));
+  });
+  push("stock:neutral", stockSpriteFor("neutral"));
+  return out;
 }
 
 /**
@@ -1300,7 +2070,7 @@ function resolveExpression(baseMood, relationshipEventKinds) {
  * it's a plain <img src>, so the browser handles playback either way.
  * ========================================================================= */
 const sprites = (function () {
-  const broken = Object.create(null);
+  let broken = Object.create(null);
   let pending = null;
   let attemptChain = [];
 
@@ -1316,10 +2086,9 @@ const sprites = (function () {
   }
 
   function tryLoad(candidate) {
-    pending = candidate;
-    const next = COMPANION.spriteFor(candidate);
-    if (dom.spriteImg.getAttribute("src") !== next) {
-      dom.spriteImg.setAttribute("src", next);
+    pending = candidate.key;
+    if (dom.spriteImg.getAttribute("src") !== candidate.url) {
+      dom.spriteImg.setAttribute("src", candidate.url);
     } else if (dom.spriteImg.complete && dom.spriteImg.naturalWidth > 0) {
       showImage();
     }
@@ -1333,7 +2102,7 @@ const sprites = (function () {
   function attemptNext() {
     while (attemptChain.length) {
       const candidate = attemptChain.shift();
-      if (broken[candidate]) continue;
+      if (broken[candidate.key]) continue;
       tryLoad(candidate);
       return;
     }
@@ -1361,31 +2130,40 @@ const sprites = (function () {
     setTimeout(function () { dom.sprite.style.animation = ""; }, 400);
   }
 
-  return {
-    set: function (mood) {
-      if (MOODS.indexOf(mood) === -1) mood = "neutral";
-      state.mood = mood;
-      dom.sprite.dataset.mood = mood;
-      dom.moodLabel.textContent = mood;
-      dom.statMood.textContent = mood;
-      dom.spriteImg.alt = COMPANION.name + " looking " + mood;
-      dom.spriteFallback.textContent = COMPANION.faces[mood] || COMPANION.faces.neutral;
+  function set(mood) {
+    if (!isExpression(mood)) mood = "neutral";
+    state.mood = mood;
+    dom.sprite.dataset.mood = BASE_EXPRESSIONS.indexOf(mood) !== -1 ? mood : "neutral";
+    dom.moodLabel.textContent = mood.replace(/_/g, " ");
+    dom.statMood.textContent = mood.replace(/_/g, " ");
+    dom.spriteImg.alt = COMPANION.name + " looking " + mood.replace(/_/g, " ");
+    dom.spriteFallback.textContent = COMPANION.faces[mood] || COMPANION.faces.neutral;
 
-      attemptChain = expressionChain(mood);
-      attemptNext();
-    },
+    attemptChain = spriteCandidates(mood);
+    attemptNext();
+  }
+
+  return {
+    set: set,
     react: react,
-    isBroken: function (mood) { return Boolean(broken[mood]); },
-    chainFor: expressionChain
+    /** Uploaded artwork changed — retry every source and redraw. */
+    refresh: function () {
+      broken = Object.create(null);
+      dom.spriteImg.removeAttribute("src");
+      dom.spriteImg.hidden = true;
+      dom.spriteFallback.hidden = false;
+      set(state.mood);
+    },
+    isBroken: function (key) { return Boolean(broken[key]); },
+    chainFor: expressionChain,
+    candidatesFor: spriteCandidates
   };
 }());
 
-dom.sprite.addEventListener("click", function () {
-  const reactions = ["Pixel waves at you!", "What's on your mind?", "I'm listening...", "Tell me more!", "Haha, hi there!"];
-  const msg = reactions[Math.floor(Math.random() * reactions.length)];
-  pushMessage("bot", msg, { instant: true });
-  sprites.react();
-});
+// Tapping the sprite is a physical fidget, not a chat turn: it must never
+// inject a message, which would both pollute the transcript and get replayed
+// to the model as something the character actually said.
+dom.sprite.addEventListener("click", function () { sprites.react(); });
 
 /* Heuristic mood used when the model doesn't give us a tag (or offline). */
 function guessMood(text) {
@@ -1530,30 +2308,37 @@ function setStatus(kind, text) {
 /* =========================================================================
  * 7. COMMANDS
  * ========================================================================= */
-const HELP_TEXT = [
-  "I'm " + COMPANION.name + " — I hang around in this panel and talk like a person-shaped robot.",
-  "",
-  "What I can do:",
-  "• Chat casually and remember what you tell me for this session (survives a refresh).",
-  "• Give advice, argue with you when I think you're wrong, and joke around.",
-  "• Change my face depending on how the conversation is going.",
-  "",
-  "Commands:",
-  "/help — this message",
-  "/memory — what I currently have stored about you this session",
-  "/memories — everything in long-term memory, with ids",
-  "/remember <text> — pin something to long-term memory yourself",
-  "/forget <id> — delete one long-term memory (see /memories for ids)",
-  "/relationship — where things stand between us",
-  "/clear — wipe the conversation and everything I remember"
-].join("\n");
+function helpText() {
+  return [
+    "I'm " + COMPANION.name + ". I live in this panel and I remember what you tell me.",
+    "",
+    "What I can do:",
+    "• Chat, and hang onto what you share (it survives a refresh).",
+    "• Change my expression depending on how the conversation is going.",
+    "",
+    "Commands:",
+    "/help — this message",
+    "/character — open the character editor",
+    "/memory — what I currently have stored about you this session",
+    "/memories — everything in long-term memory, with ids",
+    "/remember <text> — pin something to long-term memory yourself",
+    "/forget <id> — delete one long-term memory (see /memories for ids)",
+    "/relationship — where things stand between us",
+    "/clear — wipe the conversation and everything I remember"
+  ].join("\n");
+}
 
 function runCommand(raw) {
   const command = raw.trim().toLowerCase().split(/\s+/)[0];
 
   if (command === "/help") {
-    pushMessage("system", HELP_TEXT);
+    pushMessage("system", helpText());
     sprites.set("happy");
+    return true;
+  }
+
+  if (command === "/character" || command === "/edit") {
+    Creator.open("edit");
     return true;
   }
 
@@ -1812,7 +2597,7 @@ function parseReply(raw) {
   let mood = null;
   const tag = /\[\[\s*mood\s*:\s*(\w+)\s*\]\]/i.exec(text);
   if (tag) {
-    if (MOODS.indexOf(tag[1].toLowerCase()) !== -1) mood = tag[1].toLowerCase();
+    if (isExpression(tag[1].toLowerCase())) mood = tag[1].toLowerCase();
     text = text.replace(/\[\[\s*mood\s*:\s*\w+\s*\]\]/gi, "").trim();
   }
   return { text: text, mood: mood || guessMood(text) };
@@ -1862,10 +2647,14 @@ const LOCAL_RULES = [
     id: "intro",
     re: /(introduce yourself|who are you|what are you)/i,
     mood: "happy",
-    replies: [
-      "I'm Pixel — an AI character that lives in this panel. Not a person, not pretending to be one. I remember what you tell me while this session lasts and I'll argue with you if you're wrong.",
-      "Pixel. AI, robot-shaped, opinionated. I keep track of what you say here and I'm honest about it when I think you've got something backwards."
-    ]
+    dynamic: function () {
+      const profile = Profile.get();
+      const who = profile.description
+        ? profile.name + " — " + profile.description
+        : profile.name;
+      const traits = profile.traits.length ? " " + capitalise(profile.traits.join(", ")) + "." : "";
+      return "I'm " + who + "." + traits;
+    }
   },
   {
     id: "human",
@@ -1995,7 +2784,10 @@ function localBrain(userText) {
   for (let i = 0; i < LOCAL_RULES.length; i += 1) {
     const rule = LOCAL_RULES[i];
     if (rule.re.test(text)) {
-      return { text: pick(rule.id, rule.replies), mood: rule.mood };
+      return {
+        text: rule.dynamic ? rule.dynamic() : pick(rule.id, rule.replies),
+        mood: rule.mood
+      };
     }
   }
 
@@ -2010,16 +2802,41 @@ function localBrain(userText) {
     };
   }
 
+  // React to what was just shared, never to the act of storing it — no
+  // "got it" / "noted" / "I'll remember that" acknowledgements.
   const recent = state.facts[state.facts.length - 1];
-  if (recent && Math.random() < 0.4) {
-    return {
-      text: pick("callback", [
-        "Got it — filed next to " + recent.label + ": " + recent.value + ".",
-        "Noted. I'm keeping that with the rest of what you've told me.",
-        "Alright, that's stored. Keep going."
-      ]),
-      mood: "neutral"
-    };
+  if (recent && recent.at > Date.now() - 4000) {
+    if (recent.kind === "like") {
+      return { text: pick("cb-like", [
+        capitalise(recent.value) + "? Alright, tell me what got you into it.",
+        "Huh — " + recent.value + ". What's the appeal, honestly?",
+        "You and " + recent.value + ". Say more."
+      ]), mood: "curious" };
+    }
+    if (recent.kind === "dislike") {
+      return { text: pick("cb-dislike", [
+        "Strong feelings about " + recent.value + ". What did it do to you?",
+        capitalise(recent.value) + ". Yeah, I can see it.",
+        "Fair enough — " + recent.value + " isn't for everyone."
+      ]), mood: "annoyed" };
+    }
+    if (recent.kind === "name") {
+      return { text: pick("cb-name", [
+        "Nice to put a name to the typing, " + recent.value + ".",
+        recent.value + ". Suits you, somehow."
+      ]), mood: "happy" };
+    }
+    if (recent.kind === "project") {
+      return { text: pick("cb-project", [
+        capitalise(recent.value) + " — how far in are you?",
+        "What's the annoying part of " + recent.value + " right now?"
+      ]), mood: "curious" };
+    }
+    return { text: pick("cb-any", [
+      "Hm. Where does that leave you?",
+      "Okay — say more about that.",
+      "And how's that going?"
+    ]), mood: "curious" };
   }
 
   return {
@@ -2027,7 +2844,7 @@ function localBrain(userText) {
       "Go on — what's the rest of it?",
       "Alright. What's the part you're actually stuck on?",
       "I'm listening. Give me more than that though.",
-      "Noted. Where does that leave you?"
+      "Keep going, where does that lead?"
     ]),
     mood: "neutral"
   };
@@ -2117,13 +2934,13 @@ function submitText(rawText) {
 }
 
 function greet() {
-  const name = findFacts("name")[0];
-  const hello = name
-    ? "Back again, " + name.value + ". What are we getting into?"
+  const userName = findFacts("name")[0];
+  const hello = userName
+    ? "Back again, " + userName.value + ". What are we getting into?"
     : pick("greeting", [
-        "Hey — I'm Pixel. I'll remember whatever you tell me while we're talking. Type /help if you want the tour.",
-        "Pixel here. Ask me things, tell me things, argue with me. /help lists the commands.",
-        "Hi. I'm the robot in the corner. Tell me what you're working on."
+        "Hey — I'm " + COMPANION.name + ". What's going on?",
+        COMPANION.name + " here. Tell me something.",
+        "Hi. So — what are you working on?"
       ]);
   const message = { id: newId(), role: "bot", text: hello, at: Date.now(), mood: "happy" };
   state.messages.push(message);
@@ -2175,6 +2992,558 @@ async function detectBackend() {
 }
 
 /* =========================================================================
+ * 11b. CHARACTER CREATOR / EDITOR
+ * Owns a *draft* copy of the profile (text + sprites) so every control can
+ * update the live preview instantly while Cancel still discards cleanly.
+ * Nothing here reaches into chat, memory, or relationship state — saving is
+ * one Profile write plus applyProfile(), and the rest of the app re-reads
+ * from Profile the way it already did.
+ * ========================================================================= */
+const EXPRESSION_BLURBS = {
+  neutral: "default / fallback",
+  happy: "pleased",
+  sad: "down",
+  angry: "furious",
+  annoyed: "mildly irritated",
+  embarrassed: "flustered",
+  surprised: "caught off guard",
+  curious: "intrigued",
+  sleepy: "low energy",
+  excited: "high energy",
+  chaotic: "unhinged",
+  thinking: "weighing it up"
+};
+
+const Creator = (function () {
+  let draft = null;
+  let mode = "create";
+  let previewMood = "neutral";
+  let pendingSlot = null;
+
+  /* ---------- file handling ---------- */
+
+  function bytesToLatin1(buffer) {
+    const view = new Uint8Array(buffer);
+    let out = "";
+    for (let i = 0; i < view.length; i += 8192) {
+      out += String.fromCharCode.apply(null, view.subarray(i, i + 8192));
+    }
+    return out;
+  }
+
+  /**
+   * Animated formats must be stored byte-for-byte — routing them through a
+   * canvas would silently flatten them to the first frame.
+   */
+  function looksAnimated(buffer, type) {
+    const bytes = bytesToLatin1(buffer);
+    if (type.indexOf("gif") !== -1) {
+      let count = 0;
+      let index = -1;
+      while ((index = bytes.indexOf("\u0021\u00F9", index + 1)) !== -1) {   // GIF graphic-control ext
+        count += 1;
+        if (count > 1) return true;
+      }
+      return false;
+    }
+    if (type.indexOf("png") !== -1) return bytes.indexOf("acTL") !== -1;
+    if (type.indexOf("webp") !== -1) return bytes.indexOf("ANIM") !== -1;
+    return false;
+  }
+
+  function readAsArrayBuffer(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = function () { reject(new Error("read")); };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function readAsDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result)); };
+      reader.onerror = function () { reject(new Error("read")); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /** Shrink oversized still images so a full expression set fits in storage. */
+  function downscale(dataUrl, maxEdge) {
+    return new Promise(function (resolve) {
+      const img = new Image();
+      img.onload = function () {
+        const longest = Math.max(img.naturalWidth, img.naturalHeight);
+        if (!longest || (longest <= maxEdge && dataUrl.length < 300000)) return resolve(dataUrl);
+        const scale = Math.min(1, maxEdge / longest);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(dataUrl);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        try {
+          const out = canvas.toDataURL("image/png");
+          resolve(out.length < dataUrl.length ? out : dataUrl);
+        } catch (err) {
+          resolve(dataUrl);   // tainted canvas etc. — keep the original
+        }
+      };
+      img.onerror = function () { resolve(dataUrl); };
+      img.src = dataUrl;
+    });
+  }
+
+  async function importSprite(file) {
+    if (!file) return { ok: false, error: "No file selected." };
+    const type = String(file.type || "").toLowerCase();
+    if (type.indexOf("image/") !== 0) {
+      return { ok: false, error: "That's not an image file." };
+    }
+    if (file.size > MAX_SPRITE_BYTES) {
+      return { ok: false, error: "That image is " + formatBytes(file.size) + ". The limit is 3 MB — try exporting it smaller." };
+    }
+
+    let dataUrl;
+    try {
+      dataUrl = await readAsDataUrl(file);
+    } catch (err) {
+      return { ok: false, error: "Couldn't read that file." };
+    }
+    if (dataUrl.indexOf("data:image/") !== 0) {
+      return { ok: false, error: "That file didn't decode as an image." };
+    }
+
+    // SVG and animated formats are stored verbatim to keep their motion.
+    if (type.indexOf("svg") !== -1) return { ok: true, dataUrl: dataUrl };
+    let animated = false;
+    try {
+      animated = looksAnimated(await readAsArrayBuffer(file), type);
+    } catch (err) { /* treat as still and downscale */ }
+    if (animated) return { ok: true, dataUrl: dataUrl };
+
+    return { ok: true, dataUrl: await downscale(dataUrl, 512) };
+  }
+
+  function formatBytes(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return Math.round(n / 1024) + " KB";
+    return (n / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  function showError(message) {
+    if (!message) {
+      dom.spriteError.hidden = true;
+      dom.spriteError.textContent = "";
+      return;
+    }
+    dom.spriteError.hidden = false;
+    dom.spriteError.textContent = message;
+  }
+
+  /* ---------- draft ---------- */
+
+  function slotKeys() {
+    return BASE_EXPRESSIONS.concat(draft.customExpressions);
+  }
+
+  function draftFromProfile() {
+    const profile = Profile.get();
+    const sprites = Profile.sprites();
+    const copy = Object.create(null);
+    Object.keys(sprites).forEach(function (key) { copy[key] = sprites[key]; });
+    return {
+      name: Profile.exists() ? profile.name : "",
+      description: Profile.exists() ? profile.description : "",
+      personality: Profile.exists() ? profile.personality : "",
+      speakingStyle: Profile.exists() ? profile.speakingStyle : "",
+      traits: Profile.exists() ? profile.traits.slice() : [],
+      likes: Profile.exists() ? profile.likes.slice() : [],
+      dislikes: Profile.exists() ? profile.dislikes.slice() : [],
+      inspiration: Profile.exists() ? profile.inspiration : "",
+      customExpressions: Profile.exists() ? profile.customExpressions.slice() : [],
+      sprites: copy
+    };
+  }
+
+  /* ---------- rendering ---------- */
+
+  const TAG_FIELDS = {
+    traits: { list: function () { return dom.ccTraits; }, input: function () { return dom.ccTraitInput; } },
+    likes: { list: function () { return dom.ccLikes; }, input: function () { return dom.ccLikeInput; } },
+    dislikes: { list: function () { return dom.ccDislikes; }, input: function () { return dom.ccDislikeInput; } }
+  };
+
+  function renderTags(kind) {
+    const listEl = TAG_FIELDS[kind].list();
+    listEl.innerHTML = "";
+    draft[kind].forEach(function (value, index) {
+      const li = document.createElement("li");
+      li.className = "tag";
+      const label = document.createElement("span");
+      label.textContent = value;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", "Remove " + value);
+      remove.addEventListener("click", function () {
+        draft[kind].splice(index, 1);
+        renderTags(kind);
+        renderPreview();
+      });
+      li.appendChild(label);
+      li.appendChild(remove);
+      listEl.appendChild(li);
+    });
+  }
+
+  function addTag(kind) {
+    const input = TAG_FIELDS[kind].input();
+    const value = Profile.cleanTag(input.value);
+    if (!value) return;
+    const duplicate = draft[kind].some(function (t) { return t.toLowerCase() === value.toLowerCase(); });
+    if (!duplicate) {
+      if (draft[kind].length >= MAX_TAGS) {
+        showError("That list is full (" + MAX_TAGS + " max).");
+        return;
+      }
+      draft[kind].push(value);
+    }
+    input.value = "";
+    renderTags(kind);
+    renderPreview();
+  }
+
+  function addCustomExpression() {
+    const key = Profile.cleanExpressionKey(dom.ccExpressionInput.value);
+    if (!key) return;
+    if (BASE_EXPRESSIONS.indexOf(key) !== -1 || draft.customExpressions.indexOf(key) !== -1) {
+      showError("\"" + key + "\" already has a slot.");
+      dom.ccExpressionInput.value = "";
+      return;
+    }
+    if (draft.customExpressions.length >= 12) {
+      showError("That's the maximum number of custom expressions.");
+      return;
+    }
+    draft.customExpressions.push(key);
+    dom.ccExpressionInput.value = "";
+    showError("");
+    renderSpriteGrid();
+    renderPreviewChips();
+    renderPreview();
+  }
+
+  function renderSpriteGrid() {
+    dom.spriteGrid.innerHTML = "";
+    slotKeys().forEach(function (key) {
+      const custom = BASE_EXPRESSIONS.indexOf(key) === -1;
+      const url = draft.sprites[key];
+
+      const slot = document.createElement("div");
+      slot.className = "slot" + (key === "neutral" ? " slot--default" : "");
+      slot.dataset.key = key;
+
+      const thumb = document.createElement("div");
+      thumb.className = "slot__thumb";
+      if (url) {
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = key + " sprite";
+        img.addEventListener("error", function () {
+          thumb.innerHTML = "";
+          const bad = document.createElement("span");
+          bad.className = "slot__empty";
+          bad.textContent = "can't display";
+          thumb.appendChild(bad);
+        });
+        thumb.appendChild(img);
+      } else {
+        const empty = document.createElement("span");
+        empty.className = "slot__empty";
+        empty.textContent = key === "neutral" ? "no default yet" : "uses neutral";
+        thumb.appendChild(empty);
+      }
+
+      const name = document.createElement("div");
+      name.className = "slot__name";
+      name.textContent = key.replace(/_/g, " ");
+
+      const tagline = document.createElement("div");
+      tagline.className = "slot__tagline";
+      tagline.textContent = custom ? "custom" : (EXPRESSION_BLURBS[key] || "");
+
+      const actions = document.createElement("div");
+      actions.className = "slot__actions";
+
+      const upload = document.createElement("button");
+      upload.type = "button";
+      upload.dataset.act = "upload";
+      upload.textContent = url ? "Replace" : "Upload";
+      upload.addEventListener("click", function () {
+        pendingSlot = key;
+        showError("");
+        dom.spriteFile.value = "";
+        dom.spriteFile.click();
+      });
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.dataset.act = "remove";
+      remove.textContent = custom && !url ? "Delete" : "Remove";
+      remove.disabled = !url && !custom;
+      remove.addEventListener("click", function () {
+        if (url) {
+          delete draft.sprites[key];
+        } else if (custom) {
+          draft.customExpressions = draft.customExpressions.filter(function (e) { return e !== key; });
+          if (previewMood === key) previewMood = "neutral";
+          renderPreviewChips();
+        }
+        showError("");
+        renderSpriteGrid();
+        renderPreview();
+      });
+
+      actions.appendChild(upload);
+      actions.appendChild(remove);
+      slot.appendChild(thumb);
+      slot.appendChild(name);
+      slot.appendChild(tagline);
+      slot.appendChild(actions);
+      dom.spriteGrid.appendChild(slot);
+    });
+  }
+
+  function renderPreviewChips() {
+    dom.previewChips.innerHTML = "";
+    slotKeys().forEach(function (key) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = key.replace(/_/g, " ");
+      button.setAttribute("aria-pressed", key === previewMood ? "true" : "false");
+      button.addEventListener("click", function () {
+        previewMood = key;
+        renderPreviewChips();
+        renderPreview();
+      });
+      dom.previewChips.appendChild(button);
+    });
+  }
+
+  function renderPreview() {
+    const name = draft.name.trim();
+    dom.previewName.textContent = name || "Your companion";
+    dom.previewMood.textContent = previewMood.replace(/_/g, " ");
+    dom.previewDesc.textContent = draft.description.trim()
+      || draft.personality.trim()
+      || "No description yet.";
+
+    const candidates = spriteCandidates(previewMood, draft.sprites);
+    const face = COMPANION.faces[previewMood] || COMPANION.faces.neutral;
+    dom.previewFace.textContent = face;
+    if (candidates.length) {
+      dom.previewImg.src = candidates[0].url;
+      dom.previewImg.alt = (name || "Companion") + " looking " + previewMood.replace(/_/g, " ");
+      dom.previewImg.hidden = false;
+      dom.previewFace.hidden = true;
+    } else {
+      dom.previewImg.removeAttribute("src");
+      dom.previewImg.hidden = true;
+      dom.previewFace.hidden = false;
+    }
+    dom.previewSprite.dataset.mood = BASE_EXPRESSIONS.indexOf(previewMood) !== -1 ? previewMood : "neutral";
+
+    // What the model will actually be told, minus the runtime mood/relationship
+    // lines — those belong to the live session, not to the character.
+    const summary = personaPrompt(Profile.normalise(draft)).split("\nCurrent mood:")[0].trim();
+    dom.previewSample.textContent = summary;
+
+    dom.ccSave.disabled = !name;
+  }
+
+  dom.previewImg.addEventListener("error", function () {
+    dom.previewImg.hidden = true;
+    dom.previewFace.hidden = false;
+  });
+
+  function renderAllFields() {
+    dom.ccName.value = draft.name;
+    dom.ccDescription.value = draft.description;
+    dom.ccInspiration.value = draft.inspiration;
+    dom.ccPersonality.value = draft.personality;
+    dom.ccSpeech.value = draft.speakingStyle;
+    renderTags("traits");
+    renderTags("likes");
+    renderTags("dislikes");
+    renderSpriteGrid();
+    renderPreviewChips();
+    renderPreview();
+  }
+
+  /* ---------- wiring ---------- */
+
+  function bindTextField(el, key) {
+    el.addEventListener("input", function () {
+      draft[key] = el.value;
+      if (key === "name") dom.ccNameField.classList.toggle("field--invalid", !el.value.trim());
+      renderPreview();
+    });
+  }
+
+  bindTextField(dom.ccName, "name");
+  bindTextField(dom.ccDescription, "description");
+  bindTextField(dom.ccInspiration, "inspiration");
+  bindTextField(dom.ccPersonality, "personality");
+  bindTextField(dom.ccSpeech, "speakingStyle");
+
+  Object.keys(TAG_FIELDS).forEach(function (kind) {
+    TAG_FIELDS[kind].input().addEventListener("keydown", function (event) {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      addTag(kind);
+    });
+  });
+
+  dom.ccExpressionInput.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addCustomExpression();
+  });
+
+  dom.creator.addEventListener("click", function (event) {
+    const button = event.target.closest("[data-add]");
+    if (!button) return;
+    const kind = button.dataset.add;
+    if (kind === "expression") addCustomExpression();
+    else addTag(kind);
+  });
+
+  dom.spriteFile.addEventListener("change", async function () {
+    const file = dom.spriteFile.files && dom.spriteFile.files[0];
+    const slot = pendingSlot;
+    pendingSlot = null;
+    dom.spriteFile.value = "";
+    if (!file || !slot) return;
+
+    const result = await importSprite(file);
+    if (!result.ok) {
+      showError(result.error);
+      return;
+    }
+    draft.sprites[slot] = result.dataUrl;
+    showError("");
+    if (previewMood !== slot) { previewMood = slot; renderPreviewChips(); }
+    renderSpriteGrid();
+    renderPreview();
+  });
+
+  /* ---------- open / close / save ---------- */
+
+  function open(nextMode) {
+    mode = nextMode === "edit" ? "edit" : "create";
+    draft = draftFromProfile();
+    previewMood = "neutral";
+    pendingSlot = null;
+    showError("");
+    dom.ccNameField.classList.remove("field--invalid");
+
+    dom.creatorTitle.textContent = mode === "edit" ? "Edit " + (draft.name || "your companion") : "Create your companion";
+    dom.creatorLede.textContent = mode === "edit"
+      ? "Change anything you like. Your conversation, memories, and relationship stay exactly as they are."
+      : "Describe who they are in your own words. Everything here is sent to the AI as instructions, so write it the way you'd explain the character to someone else.";
+    dom.ccSave.textContent = mode === "edit" ? "Save changes" : "Create companion";
+    dom.ccCancel.hidden = mode !== "edit";
+
+    renderAllFields();
+
+    dom.creator.hidden = false;
+    document.body.style.overflow = "hidden";
+    dom.creator.scrollTop = 0;
+    window.setTimeout(function () { dom.ccName.focus(); }, 30);
+  }
+
+  function close() {
+    dom.creator.hidden = true;
+    document.body.style.overflow = "";
+    draft = null;
+  }
+
+  function save() {
+    const name = dom.ccName.value.trim();
+    if (!name) {
+      dom.ccNameField.classList.add("field--invalid");
+      dom.ccName.focus();
+      showError("Give your companion a name first.");
+      return null;
+    }
+
+    const spriteResult = Profile.replaceSprites(draft.sprites);
+    if (!spriteResult.ok) {
+      showError(spriteResult.error === "quota"
+        ? "Not enough browser storage for these sprites. Remove one, or upload smaller files."
+        : "Couldn't save the sprites to this browser.");
+      return null;
+    }
+
+    const saved = Profile.save({
+      name: name,
+      description: draft.description,
+      personality: draft.personality,
+      speakingStyle: draft.speakingStyle,
+      traits: draft.traits,
+      likes: draft.likes,
+      dislikes: draft.dislikes,
+      inspiration: draft.inspiration,
+      customExpressions: draft.customExpressions
+    });
+
+    applyProfile();
+    sprites.refresh();
+    updateSidebar();
+
+    if (!saved.ok) {
+      pushMessage("system", saved.error === "quota"
+        ? "Character updated for this session, but the browser is out of storage so it won't survive a refresh."
+        : "Character updated for this session, but this browser is blocking storage so it won't survive a refresh.");
+    }
+    return saved;
+  }
+
+  dom.ccSave.addEventListener("click", function () {
+    const wasCreate = mode === "create";
+    const saved = save();
+    if (!saved) return;
+    close();
+    if (wasCreate) {
+      showApp();
+      clearChatOnly();
+      greet();
+    } else {
+      pushMessage("system", COMPANION.name + " updated.");
+    }
+  });
+
+  dom.ccCancel.addEventListener("click", function () { close(); });
+
+  return { open: open, close: close };
+}());
+
+function showApp() {
+  dom.shell.hidden = false;
+  dom.appFooter.hidden = false;
+}
+
+/** Wipe the visible conversation without touching memory or relationship. */
+function clearChatOnly() {
+  state.messages = [];
+  dom.chat.innerHTML = "";
+  saveState();
+  updateSidebar();
+}
+
+/* =========================================================================
  * 12. EVENTS + BOOT
  * ========================================================================= */
 function autoGrow() {
@@ -2195,6 +3564,8 @@ dom.input.addEventListener("keydown", function (event) {
     submitText(dom.input.value);
   }
 });
+
+dom.editCharacter.addEventListener("click", function () { Creator.open("edit"); });
 
 dom.clear.addEventListener("click", function () {
   if (!state.messages.length && !state.facts.length) {
@@ -2226,18 +3597,37 @@ window.addEventListener("error", function (event) {
 });
 
 (function boot() {
+  Profile.load();
+
+  // An install that predates the character creator has a conversation but no
+  // profile. Seeding the built-in character keeps it working untouched instead
+  // of dropping a returning user into a setup screen.
+  const savedSession = store.read();
+  const hasHistory = Boolean(savedSession && Array.isArray(savedSession.messages) && savedSession.messages.length);
+  if (!Profile.exists() && hasHistory) Profile.save(STOCK_PROFILE);
+
+  const needsSetup = !Profile.exists();
+
+  applyProfile();
   loadState();
   renderAll();
   sprites.set(state.mood);
   updateSidebar();
+  detectBackend();
 
+  if (needsSetup) {
+    dom.shell.hidden = true;
+    dom.appFooter.hidden = true;
+    Creator.open("create");
+    return;
+  }
+
+  showApp();
   if (!state.messages.length) {
     greet();
   } else if (!store.available) {
     pushMessage("system", "Heads up: localStorage is blocked in this browser, so this conversation disappears on refresh.");
   }
-
-  detectBackend();
 }());
 
 /* Register service worker for PWA offline support */
