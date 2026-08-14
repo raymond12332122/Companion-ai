@@ -11,7 +11,7 @@ loop: download it from GitHub in the phone's browser and open it. There is no
 https://github.com/raymond12332122/Companion-ai/raw/refs/heads/claude/ai-companion-buddy-jvj4bq/dist/companion-ai-debug.apk
 ```
 
-SHA-256: `91ce98324d30806c00247748ca322eb8b7ed1373ee0f1876d70f8bb296a5af8a`
+SHA-256: `714f4d84432987c132b7d84d05996ee9bddc5f8a09ae1a56243c13f040a16d53`
 
 Android will ask permission to install from whatever app opened the file
 (Chrome, or the file manager) — that prompt is expected for anything not from
@@ -49,8 +49,9 @@ from [litert-community](https://huggingface.co/litert-community). With no
 model the app says so in the status pill and runs on the offline brain.
 
 Whichever engine actually answers depends on `AI_CONFIG.provider` in
-`index.html` — set it to `"gemma"` to use Local Gemma, `"device"` for the
-original Local AI plugin, before building.
+`index.html` — this build has it set to `"gemma"`, so the app runs on Local
+Gemma once a model is imported (`"device"` selects the original Local AI
+plugin instead, `"proxy"` the cloud backend).
 
 ## Housekeeping
 
