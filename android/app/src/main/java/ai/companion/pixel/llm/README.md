@@ -1,65 +1,136 @@
 # CompanionLocalLlm plugin
 
-Bridges the companion's provider abstraction to an on-device model, so the
-same character can run offline without a data connection or an NVIDIA key.
+Runs the character on the phone. No network, no API key, no NVIDIA account —
+the same `index.html`, the same character, the same memories, with inference
+happening on the device instead of in a data centre.
 
-**Status: scaffolding only.** `StubLlmEngine` is the only implementation, and
-it always reports itself unavailable. No model is bundled, no inference
-engine dependency is pulled in, and no native inference runs. What exists
-here is the wiring everything else plugs into once a model is chosen — see
-`/LOCAL_AI_INVESTIGATION.md` and `/70B_TESTING_RESULTS.md` at the repo root
-for the research and reasoning behind the recommendation below.
+The engine is [LiteRT-LM][litert], reaching Android as MediaPipe's LLM
+Inference task (`com.google.mediapipe:tasks-genai`). It is real and it works.
+**What is missing is a model**, and that is on purpose — see below.
 
-## Why this shape
+[litert]: https://github.com/google-ai-edge/LiteRT-LM
 
-`CompanionLocalLlmPlugin` speaks the same two-field contract as
-`server/proxy.js`'s `/api/chat`: `{system, messages}` in,
-`{response, emotion}` out. The character identity, personality, mood,
-relationship state, and memories are already composed into a single
-`system` string by `systemPrompt()` in `index.html` — this plugin receives
-that string as-is and never needs to know what's inside it. Swapping engines
-is a one-file change (`LlmEngine`'s implementation); nothing upstream moves.
+## Getting a model onto the device
 
-## Wiring in a real engine
+Nothing is bundled in the APK and nothing is downloaded automatically. A
+model is 0.5-3 GB: too large to ship inside an app, and not something to pull
+over someone's mobile data without asking. So it is a file you put there.
 
-1. **Pick the engine.** Recommendation from `/LOCAL_AI_INVESTIGATION.md`:
-   - Primary: **LiteRT-LM** (`com.google.ai.edge.litert` / MediaPipe GenAI
-     tasks) — GPU-accelerated, cleaner Kotlin API.
-   - Fallback: **llama.cpp** via JNI, if GGUF model flexibility turns out to
-     matter more than the smoother LiteRT integration.
+Download a **MediaPipe bundle** — a `.task` or `.litertlm` file — and push it
+to the app's own directory:
 
-2. **Pick the model.** Recommendation: **Llama 3.2 3B Instruct, Q4_K_M
-   GGUF/LiteRT-converted (~2.0 GB)**, with **Gemma 2 2B (~1.4 GB,
-   Apache-2.0)** as a smaller-footprint fallback for tighter storage/RAM
-   budgets. Neither is bundled yet — that's a separate, explicit decision
-   (storage cost, download-on-demand vs. bundled-in-APK, licensing
-   acknowledgment) that hasn't been made.
+```bash
+adb push gemma3-1b-it-int4.task \
+  /sdcard/Android/data/ai.companion.pixel/files/models/
+```
 
-3. **Add the dependency** in `android/app/build.gradle` (commented placeholder
-   already there) once the exact Maven coordinates and version are verified
-   against the current LiteRT-LM release.
+That path needs no storage permission and no root; a file manager works just
+as well. The app finds anything dropped there on next launch. `filesDir/models`
+is checked too, for builds that want the model unreachable from outside.
 
-4. **Implement `LlmEngine`** (new class, e.g. `LiteRtLlmEngine.kt`) — reads
-   `GenerateRequest.system` + `.messages`, runs the engine's chat template,
-   and calls `Callback.onToken` per token if the engine streams, then
-   `Callback.onComplete(response, emotion)` once. The character's prompt
-   already asks for a `{"response": "...", "emotion": "..."}` JSON object
-   (see `personaPrompt()` in `index.html`) — the same
-   `extractStructuredReply()` parsing the cloud path uses can run here too,
-   so emotion extraction doesn't need reinventing.
+### Where to get one
 
-5. **Swap `StubLlmEngine()` for the real engine** in
-   `CompanionLocalLlmPlugin`'s single `engine` field. That's the entire
-   integration point — the plugin's method bodies, the JS-side `"device"`
-   provider in `index.html`, and the fallback chain (device → proxy →
-   offline brain) all stay as they are.
+[`litert-community` on Hugging Face][hf] publishes conversions of most small
+open models. Verified starting points:
 
-## What deliberately isn't here yet
+| Model | File | Size | Notes |
+| --- | --- | --- | --- |
+| **Gemma 3 1B IT** | `gemma3-1b-it-int4.task` | **529 MB** | **Start here.** Fast on almost anything, small enough to not think about. |
+| Gemma 3 1B IT | `gemma3-1b-it-int4.litertlm` | 557 MB | Same model, newer container format. |
+| Qwen 3 1.7B | `Qwen3_1.7B.litertlm` | ~1 GB | Better prose, noticeably slower. |
+| Gemma 4 E2B IT | `gemma-4-E2B-it.litertlm` | ~3 GB | Only worth it on 8 GB+ phones. |
 
-- No model file, anywhere in the repo or the APK.
-- No inference engine dependency actually resolved/downloaded.
-- No GPU/NPU delegate selection logic.
-- No on-device download-and-verify flow for fetching a model post-install.
+[hf]: https://huggingface.co/litert-community
 
-Each is a real decision (storage, licensing, UX for a multi-GB download) that
-belongs in its own change, not bundled into scaffolding.
+**GGUF does not work here.** This runtime reads its own bundle formats, and
+`ModelCatalog` deliberately refuses to list `.gguf` so that a wrong download
+fails as "no model found" at startup rather than as a native crash later. A
+llama.cpp engine would read GGUF, and that is still the fallback plan in
+`/LOCAL_AI_INVESTIGATION.md` if bundle availability ever becomes the
+constraint.
+
+## Turning it on
+
+Set the provider in `index.html`:
+
+```js
+const AI_CONFIG = { provider: "device", … };
+```
+
+On launch the app looks for a model, starts loading it in the background, and
+shows what it found in the status pill. With no model it says so — naming the
+directory to put one in — and runs on the offline brain, exactly as it does
+for a cloud provider with no key.
+
+## How it fits together
+
+```
+index.html  callProvider("device")  ──generate({system, messages})──┐
+                                                                    │
+CompanionLocalLlmPlugin  ── Capacitor bridge, JSON in/out ──────────┤
+                                                                    │
+MediaPipeLlmEngine       ── owns the native handle, one worker ─────┤
+  ├── ModelCatalog       ── finds model files on disk                │
+  ├── ChatTemplate       ── formats turns for the model's family     │
+  └── StructuredReply    ── pulls {response, emotion} back out ──────┘
+```
+
+The plugin speaks the same contract as `server/proxy.js`'s `/api/chat`:
+`{system, messages}` in, `{response, emotion}` out. The character's identity,
+personality, mood, relationship state and memories are already composed into
+one `system` string by `systemPrompt()` in `index.html`, and nothing in this
+package knows what is inside it. That is why switching between cloud and
+device changes no other file.
+
+### The parts that are less obvious than they look
+
+**Chat templates matter more than they seem.** The inference API has no notion
+of roles — it takes text and continues it. Every instruction-tuned model was
+fine-tuned on one specific arrangement of turn markers, and the wrong one
+costs real quality: the model stops recognising where its turn ends and starts
+writing the user's next line. `ChatTemplate` picks the arrangement from the
+filename, and `plain` is there for bundles that apply their own template
+internally, where adding markers would double them.
+
+**Small models are unreliable about JSON.** The cloud path can demand a JSON
+object through a provider flag; this runtime has no such switch. A 1B model
+asked for `{"response", "emotion"}` will usually comply and will sometimes
+wrap it in a code fence, prefix it with "Sure!", or just answer in prose.
+`StructuredReply` handles all four, and falls back to treating the whole
+output as the reply — losing a good sentence for having no braces around it
+would be worse than the offline-brain answer that replaced it.
+
+**Loading is tried three ways.** GPU, then CPU, then CPU with a smaller
+context window. Whether a phone's driver can run a given model, and whether a
+bundle accepts the context size asked for, are both only discoverable by
+trying: they fail inside native graph construction. A slow reply beats none.
+Bundles that publish their KV cache size in the filename (`…_ekv1280.task`)
+have it read off and respected rather than being asked for more than they hold.
+
+**One thread owns the model for its whole life.** `LlmInference` is not safe to
+generate on concurrently, loading blocks for seconds and generation for far
+longer, so everything that touches the model is serialised onto a single
+worker and answers through a callback. `cancel()` is the deliberate exception
+— it is called from another thread precisely because the worker is busy.
+
+## APK size
+
+`tasks-genai` ships ~26 MB of native code per ABI. The build keeps
+`arm64-v8a` and `x86_64` (every 64-bit phone, plus the standard emulator) and
+drops the 32-bit ABIs, which could not hold one of these models in memory
+anyway. The debug APK is ~62 MB, up from ~4 MB.
+
+To get that back for a cloud-only build: swap `MediaPipeLlmEngine()` for
+`StubLlmEngine()` in `CompanionLocalLlmPlugin`'s `engine` field and remove the
+`tasks-genai` dependency from `app/build.gradle`. Nothing else changes — the
+JS side already treats an unavailable device provider as a normal state.
+
+## Tests
+
+`app/src/test/java/…/llm/` covers the parts that are pure logic and easy to
+get subtly wrong: template formatting per family, stop-marker trimming, the
+JSON extraction including its streaming-partial path, and the context-window
+hint. Run with `./gradlew :app:testDebugUnitTest`.
+
+The engine itself is not unit-tested — it is a thin wrapper over a native
+handle, and testing it means running a real model on a real device.

@@ -497,6 +497,22 @@
   }
   .msg--error .msg__bubble { border-color: rgba(255, 122, 145, .55); background: rgba(255, 122, 145, .1); color: #ffd7de; }
 
+  /* A reply still arriving token by token from the on-device model. It is not
+     in state.messages yet and is replaced by the real bubble when generation
+     finishes, so it deliberately carries no meta line and no id. */
+  .msg--streaming .msg__bubble::after {
+    content: "";
+    display: inline-block;
+    width: .5ch;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -.15em;
+    background: currentColor;
+    opacity: .65;
+    animation: caret 1s steps(1) infinite;
+  }
+  @keyframes caret { 50% { opacity: 0; } }
+
   .retry-btn {
     display: inline-block;
     margin-top: 8px;
@@ -939,6 +955,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .msg, .sprite, .typing__dot, .preview__sprite, .sprite__body { animation: none !important; }
+    .msg--streaming .msg__bubble::after { animation: none !important; }
     .stage__actor { transition: none !important; }
     .chip, .send-btn { transition: none; }
   }
@@ -1241,12 +1258,13 @@
  *   "openai"    -> call any OpenAI-compatible /chat/completions endpoint directly.
  *   "device"    -> run inference on-device via the CompanionLocalLlm Capacitor
  *                  plugin (android/app/.../llm/). No network, no API key. Only
- *                  meaningful inside the native Android shell — see
- *                  deviceLlmAvailable() below. As of this build the plugin's
- *                  engine is a stub with no model bundled, so this provider is
- *                  wired up but always reports itself unavailable; callers
+ *                  meaningful inside the native Android shell. The engine is
+ *                  real (LiteRT-LM via MediaPipe), but no model ships in the
+ *                  APK — one has to be put on the device first, and until it
+ *                  is, this provider reports itself unavailable and callers
  *                  fall through exactly as they would for a misconfigured
- *                  cloud provider. See /LOCAL_AI_INVESTIGATION.md.
+ *                  cloud provider. See /LOCAL_AI_INVESTIGATION.md and
+ *                  android/app/.../llm/README.md.
  *   "local"     -> no network at all; use the built-in offline brain.
  *
  * NEVER commit a real API key here. Anything in `apiKey` is shipped to every
@@ -1274,10 +1292,15 @@ const AI_CONFIG = {
   // as the conversation grows. Ignored by providers that don't support it.
   jsonMode: true,
   timeoutMs: 30000,
-  // The "device" provider gets its own, shorter budget: on-device generation
-  // that hasn't produced a first token quickly usually isn't going to, and
-  // there's a cloud/offline fallback chain waiting behind it either way.
-  deviceTimeoutMs: 12000,
+  // The "device" provider is timed differently: not a budget for the whole
+  // reply, but for going quiet. A phone generating at 3 tokens/second takes
+  // the better part of a minute over a long answer and is working correctly
+  // the whole time — a total budget would kill it mid-sentence. The clock
+  // here restarts on every token, so it only fires when generation has
+  // actually stalled, and the first token gets a longer grace period because
+  // it waits behind prefill of the entire character prompt.
+  deviceFirstTokenMs: 45000,
+  deviceStallMs: 20000,
   historyTurns: 20,           // how many past messages get sent as context
   fallbackToLocal: true       // if the request fails, answer with the offline brain
 };
@@ -1295,23 +1318,129 @@ const DeviceLlm = (window.Capacitor && typeof window.Capacitor.registerPlugin ==
   : null;
 
 /**
- * Cached across a session: availability doesn't change turn-to-turn, and
- * asking again on every message would mean a native round-trip before every
- * single reply just to confirm what was already known.
+ * Last answer from the plugin's isAvailable(): {available, loaded, reason,
+ * modelId, modelPath, sizeBytes, backend, modelDir}.
+ *
+ * Cached across a session because a model file does not appear or vanish
+ * mid-conversation, and asking again would put a native round-trip in front
+ * of every single reply to re-confirm what was already known. `loaded` is the
+ * exception — it flips once, when the background load finishes — so
+ * loadDeviceModel() updates this object rather than invalidating it.
  */
-let deviceLlmAvailable = null;
+let deviceLlmStatus = null;
+
+async function refreshDeviceLlmStatus() {
+  if (!DeviceLlm) return null;
+  try {
+    deviceLlmStatus = await DeviceLlm.isAvailable();
+  } catch (err) {
+    deviceLlmStatus = { available: false, loaded: false, reason: "plugin_error" };
+  }
+  return deviceLlmStatus;
+}
 
 async function checkDeviceLlmAvailable() {
   if (!DeviceLlm) return false;
-  if (deviceLlmAvailable !== null) return deviceLlmAvailable;
-  try {
-    const status = await DeviceLlm.isAvailable();
-    deviceLlmAvailable = Boolean(status && status.available);
-  } catch (err) {
-    deviceLlmAvailable = false;
-  }
-  return deviceLlmAvailable;
+  const status = deviceLlmStatus || await refreshDeviceLlmStatus();
+  return Boolean(status && status.available);
 }
+
+/**
+ * Reads a model off disk and into memory. Seconds of work for a file this
+ * size, which is exactly why it is started at launch instead of being left
+ * for the first message to discover.
+ */
+async function loadDeviceModel() {
+  if (!DeviceLlm) return null;
+  const outcome = await DeviceLlm.loadModel({});
+  if (deviceLlmStatus) {
+    deviceLlmStatus.loaded = true;
+    deviceLlmStatus.modelId = outcome && outcome.modelId ? outcome.modelId : deviceLlmStatus.modelId;
+    deviceLlmStatus.backend = outcome && outcome.backend ? outcome.backend : deviceLlmStatus.backend;
+  }
+  return outcome;
+}
+
+function describeDeviceModel() {
+  const status = deviceLlmStatus;
+  if (!status || !status.modelId) return "on-device model";
+  const gb = status.sizeBytes ? " · " + (status.sizeBytes / 1073741824).toFixed(1) + " GB" : "";
+  const backend = status.backend ? " · " + status.backend.toUpperCase() : "";
+  return status.modelId + gb + backend;
+}
+
+/**
+ * The reply that is still arriving, shown as it is generated.
+ *
+ * At 3-12 tokens per second a finished-reply-only UI leaves the character
+ * silent for most of a minute, which reads as broken rather than slow. The
+ * bubble here is deliberately outside state.messages: it is a view of work in
+ * progress, never persisted, and the real message replaces it through the
+ * normal pushMessage() path once generation finishes — so history, storage,
+ * retry and the mood system all see exactly what they saw before.
+ *
+ * The plugin sends the visible text already extracted from the model's JSON
+ * (see StructuredReply.partialResponse), so nothing here has to parse.
+ */
+const DeviceStream = {
+  row: null,
+  bubble: null,
+  handle: null,
+
+  /**
+   * onActivity fires on every token. The stall watchdog in callProvider hangs
+   * off it: a token arriving is the only evidence that generation is still
+   * making progress rather than wedged.
+   */
+  begin: function (onActivity) {
+    this.end();
+    if (!DeviceLlm) return;
+    const self = this;
+    // Capacitor's addListener resolves to the handle asynchronously; a reply
+    // that finishes first must still be able to detach it, hence the promise
+    // being stored rather than awaited.
+    this.handle = DeviceLlm.addListener("generateToken", function (event) {
+      if (onActivity) onActivity();
+      self.render(event && typeof event.partial === "string" ? event.partial : "");
+    });
+  },
+
+  render: function (text) {
+    if (!text) return;
+    if (!this.row) {
+      // The typing indicator has done its job the moment there are words to
+      // read; leaving both up says the character is about to speak while it
+      // is already speaking.
+      setTyping(false);
+      this.row = document.createElement("div");
+      this.row.className = "msg msg--bot msg--streaming";
+      const avatar = document.createElement("div");
+      avatar.className = "msg__avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      avatar.textContent = COMPANION.initials;
+      this.bubble = document.createElement("div");
+      this.bubble.className = "msg__bubble";
+      this.row.appendChild(avatar);
+      this.row.appendChild(this.bubble);
+      dom.chat.appendChild(this.row);
+    }
+    this.bubble.textContent = text;
+    scrollChat();
+  },
+
+  end: function () {
+    if (this.handle) {
+      const pending = this.handle;
+      this.handle = null;
+      Promise.resolve(pending).then(function (listener) {
+        if (listener && typeof listener.remove === "function") listener.remove();
+      }).catch(function () { /* already gone */ });
+    }
+    if (this.row && this.row.parentNode) this.row.parentNode.removeChild(this.row);
+    this.row = null;
+    this.bubble = null;
+  }
+};
 
 /* =========================================================================
  * 2. CHARACTER DEFINITION
@@ -3597,17 +3726,35 @@ async function callProvider(userText, options) {
   if (provider === "device") {
     if (!DeviceLlm) throw AiError("config", "On-device inference isn't available outside the Android app");
     if (!(await checkDeviceLlmAvailable())) {
-      throw AiError("config", "No on-device model is loaded — see android/app/.../llm/README.md");
+      const dir = deviceLlmStatus && deviceLlmStatus.modelDir;
+      throw AiError("config", dir
+        ? "No model file found in " + dir
+        : "No on-device model found — see android/app/.../llm/README.md");
     }
 
-    // Capacitor plugin calls don't take an AbortSignal, so the timeout budget
-    // is enforced by racing the native call against a timer instead — the
-    // native call may keep running after this, but the UI stops waiting on it
-    // and falls back the same way a cloud timeout would.
-    let timer;
+    // Capacitor plugin calls don't take an AbortSignal, so the deadline is
+    // enforced by racing the native call against a timer. Unlike the cloud
+    // path this timer is rearmed on every token: a phone is allowed to be
+    // slow, it is only not allowed to go silent. On expiry the native side is
+    // told to stop — without that it would keep decoding into a reply nobody
+    // is waiting for any more, on a battery.
+    let rearm = null;
+    let disarm = null;
     const budget = new Promise(function (_, reject) {
-      timer = window.setTimeout(function () { reject(AiError("timeout", "On-device inference timed out")); }, AI_CONFIG.deviceTimeoutMs);
+      let timer;
+      rearm = function (ms) {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(function () {
+          if (DeviceLlm.cancel) DeviceLlm.cancel().catch(function () { /* nothing running */ });
+          reject(AiError("timeout", "The on-device model stopped responding"));
+        }, ms);
+      };
+      disarm = function () { window.clearTimeout(timer); };
+      rearm(AI_CONFIG.deviceFirstTokenMs);
     });
+
+    DeviceStream.begin(function () { rearm(AI_CONFIG.deviceStallMs); });
+
     let result;
     try {
       result = await Promise.race([
@@ -3623,7 +3770,8 @@ async function callProvider(userText, options) {
       if (err && err.kind) throw err; // already an AiError (the timeout above)
       throw AiError("network", "On-device inference failed: " + (err && err.message ? err.message : String(err)));
     } finally {
-      window.clearTimeout(timer);
+      disarm();
+      DeviceStream.end();
     }
 
     // Re-packaged as the same {"response","emotion"} JSON text a cloud
@@ -4282,13 +4430,36 @@ async function detectBackend() {
       setStatus("local", "Not running in the Android app — offline brain");
       return;
     }
-    if (await checkDeviceLlmAvailable()) {
-      state.transport = "device";
-      setStatus("device", "On-device model ready");
-    } else {
+    const status = await refreshDeviceLlmStatus();
+    if (!status || !status.available) {
       state.transport = "local";
-      setStatus("local", "No on-device model loaded — offline brain");
+      // The reason carries the directory to drop a model into, which is the
+      // one piece of information that turns "not working" into a fix.
+      const where = status && typeof status.reason === "string" && status.reason.indexOf("no_model_found:") === 0
+        ? status.reason.slice("no_model_found:".length)
+        : null;
+      setStatus("local", where ? "No model in " + where + " — offline brain" : "No on-device model — offline brain");
+      return;
     }
+
+    state.transport = "device";
+    if (status.loaded) {
+      setStatus("device", "On-device: " + describeDeviceModel());
+      return;
+    }
+
+    // Reading a couple of gigabytes takes seconds, so it starts here rather
+    // than inside the first message's deadline. The provider stays usable
+    // throughout: a message sent now queues behind the load on the same
+    // native worker instead of racing it.
+    setStatus("device", "Loading " + describeDeviceModel() + "…");
+    loadDeviceModel().then(function () {
+      setStatus("device", "On-device: " + describeDeviceModel());
+    }).catch(function (err) {
+      state.transport = "local";
+      setStatus("local", "Model failed to load — offline brain");
+      console.warn("[companion] on-device model failed to load:", err && err.message ? err.message : err);
+    });
     return;
   }
 

@@ -1,6 +1,6 @@
 # Local AI Investigation for Android Companion
 
-**Status:** Scaffolding built, no inference engine or model wired in yet  
+**Status:** Implemented. Engine wired in and shipping; model is user-supplied  
 **Date:** 2026-08-14  
 **Scope:** 2-4B lightweight inference for on-device conversational AI
 
@@ -8,32 +8,50 @@
 
 ## Implementation Status (added after this research)
 
-The research below led to a Capacitor Android project and a `CompanionLocalLlm`
-plugin scaffold, so the app can actually target Android and the provider
-abstraction has a real `"device"` option — without downloading, bundling, or
-running a model yet:
+The engine recommended below is now integrated and running. What shipped:
 
-- `android/` — a real, buildable Capacitor Android project wrapping
-  `index.html`. Verified: `npm run android:debug` produces an installable
-  debug APK via an actual `./gradlew assembleDebug` run.
+- `android/` — a Capacitor Android project wrapping `index.html`.
+  `npm run android:debug` produces an installable debug APK (~62 MB) via a
+  real `./gradlew assembleDebug`.
 - `android/app/src/main/java/ai/companion/pixel/llm/` — the plugin
-  (`CompanionLocalLlmPlugin.kt`), an engine interface (`LlmEngine.kt`), and a
-  `StubLlmEngine` that always reports itself unavailable, because no model or
-  inference dependency is bundled. This is intentional, not a placeholder to
-  fix in a rush — see that package's `README.md` for exactly what swapping in
-  LiteRT-LM (or llama.cpp) later involves.
-- `index.html` — a new `"device"` value for `AI_CONFIG.provider`, wired
-  through `callProvider()` and `detectBackend()` the same way `"proxy"`,
-  `"anthropic"`, and `"openai"` already are. It returns the same
-  `{"response", "emotion"}` JSON shape the cloud providers do, so
-  `parseReply()` needed no changes. When the plugin reports unavailable (the
-  only state possible today), the app falls back to the offline brain exactly
-  as it does for an unconfigured cloud provider.
+  (`CompanionLocalLlmPlugin.kt`) over `MediaPipeLlmEngine`, which runs
+  LiteRT-LM through `com.google.mediapipe:tasks-genai:0.10.35`, plus
+  `ModelCatalog` (finds models on disk), `ChatTemplate` (per-family prompt
+  formatting), and `StructuredReply` (gets `{response, emotion}` back out of
+  whatever a small model actually produced). 28 unit tests cover the pure
+  logic. `StubLlmEngine` is kept as the one-line swap for a cloud-only build.
+- `index.html` — the `"device"` provider now loads a model at startup, streams
+  tokens into the bubble as they arrive, and times out on *stall* rather than
+  on elapsed time. It still returns the same `{"response", "emotion"}` shape,
+  so `parseReply()` and everything above it are untouched.
 
-Still not done, on purpose: no model file anywhere in the repo, no inference
-engine dependency actually resolved, no GPU/NPU delegate wiring, no
-model-download flow. Those are separate decisions (storage, licensing, UX for
-a multi-gigabyte download) that shouldn't ride in on scaffolding.
+**Deliberately still not done: no model file, anywhere.** The engine looks for
+one on the device (`/sdcard/Android/data/ai.companion.pixel/files/models/`)
+and reports itself unavailable until it finds one, which the app treats
+exactly like a cloud provider with no key. Bundling 0.5-3 GB in an APK is not
+distributable, and downloading it unasked spends someone's mobile data; a
+download-and-verify flow with real consent UX is its own change.
+
+### Where this diverged from the plan below
+
+- **Engine: LiteRT-LM, as recommended** — but there is no
+  `com.google.ai.edge.litert:litert-lm` artifact to depend on (checked: 404).
+  That repository publishes a C++ runtime; MediaPipe's LLM Inference task is
+  how it reaches Android, and that is what the build uses.
+- **Model: not Llama 3.2 3B by default.** The recommendation below optimised
+  for quality at 2.0 GB. In practice the first thing anyone needs is a model
+  that loads on the phone they have, so the documented starting point is
+  **Gemma 3 1B IT int4 at 529 MB** — a quarter of the size, fast enough to be
+  pleasant, and available as a ready-made bundle. Larger models work; the
+  engine reads whatever is in the folder.
+- **Format: `.task` / `.litertlm`, not GGUF.** This runtime reads its own
+  bundle formats. `ModelCatalog` refuses `.gguf` outright so a wrong download
+  fails as "no model found" at startup instead of as a native crash later. The
+  llama.cpp fallback below is still the answer if bundle availability ever
+  becomes the binding constraint.
+- **Timeline: not 5-6 weeks.** Steps 1-3 below are done. Step 4 (model
+  management UI) is the part that remains, and it is the part that was always
+  a product decision rather than an engineering one.
 
 ---
 
@@ -257,30 +275,35 @@ callProvider(userText, options) {
 
 ---
 
-## What We're NOT Doing Yet
+## What Was Scoped Out (and still is)
 
-- ❌ Downloading or bundling any model file
-- ❌ Writing Kotlin/Java code
-- ❌ Creating Capacitor plugin
-- ❌ Modifying existing provider system
-- ❌ Updating UI for local inference
-- ❌ Testing on actual Android devices
-- ❌ Optimizing for specific hardware
+Everything below was written before implementation. The first four are now
+done; the rest are still open, and still deliberately so.
 
-**This is research & recommendation only.** Implementation roadmap for after user approval.
+- ✅ Writing Kotlin/Java code
+- ✅ Creating the Capacitor plugin
+- ✅ Integrating with the existing provider system
+- ✅ Updating the UI for local inference (streaming, load status)
+- ❌ Downloading or bundling any model file — user-supplied, see above
+- ❌ Model management UI (browse, download, switch, delete)
+- ❌ Testing on actual Android hardware — the build is verified, the
+  inference path is not; every latency figure below is still an estimate
+- ❌ NPU delegates and per-chipset tuning
 
 ---
 
-## Next Steps If You Approve
+## What's Left
 
-1. **Approve:** LiteRT-LM + Llama 3.2 3B strategy
-2. **Plan:** Create development roadmap (5-6 week estimate)
-3. **Implement:**
-   - Build Capacitor LLM plugin
-   - Integrate with existing provider system
-   - Create model management UI
-   - Test on mid-range Android hardware
-4. **Iterate:** Refine based on real device performance
+1. **Run it on a real phone.** Nothing below has been measured on hardware.
+   Load time, tokens/second, memory headroom and thermal behaviour on a
+   mid-range device are all still projections.
+2. **Model management UI.** Currently a model is a file someone pushes over
+   `adb`. A download-with-consent flow, a size/space check, and a picker for
+   switching between models is the natural next change.
+3. **Tune the context window.** `CONTEXT_TOKENS = 2048` was chosen to fit the
+   character's system prompt plus 20 turns of history without truncating the
+   character's own definition. Whether that holds under a long relationship
+   with many stored facts wants measuring.
 
 ---
 

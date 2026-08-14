@@ -11,6 +11,19 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // MediaPipe's GenAI task pulls in guava and protobuf; together with
+        // Capacitor and AndroidX that lands close enough to the 64K method
+        // limit that a single added dependency later would break the build.
+        multiDexEnabled true
+        ndk {
+            // tasks-genai ships ~26 MB of native libraries per ABI, four ABIs,
+            // and every one of them goes into the APK unless filtered. These
+            // two cover real hardware (every 64-bit Android phone) and the
+            // standard emulator image; armeabi-v7a and x86 would add ~51 MB
+            // to serve 32-bit devices that cannot hold a 2 GB model in memory
+            // anyway.
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -46,18 +59,23 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
+    // The android.jar on the unit-test classpath stubs org.json to throw, so
+    // the real implementation has to be supplied for StructuredReply's tests
+    // to exercise the parser instead of the stub.
+    testImplementation "org.json:json:20250107"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
 
     // --- CompanionLocalLlm plugin ---
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
-    // Not added yet — no model is bundled and this dependency is unverified
-    // against the current LiteRT-LM release. Uncomment when the real engine
-    // is wired in (see android/app/src/main/java/ai/companion/pixel/llm/README.md):
-    // implementation "com.google.ai.edge.litert:litert:+"
-    // implementation "com.google.mediapipe:tasks-genai:+"
+    // LiteRT-LM, packaged for Android as MediaPipe's LLM Inference task. There
+    // is no `com.google.ai.edge.litert:litert-lm` artifact to depend on — that
+    // repository publishes a C++ runtime and this is how it reaches Android.
+    // Version is pinned, not `+`: a floating version on a dependency carrying
+    // 26 MB of native code per ABI turns an unrelated build into a silent
+    // engine swap.
+    implementation "com.google.mediapipe:tasks-genai:$mediapipeGenAiVersion"
 }
 
 apply from: 'capacitor.build.gradle'

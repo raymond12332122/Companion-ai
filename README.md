@@ -9,7 +9,7 @@ index.html              the whole app — markup, styles, and companion logic
 assets/sprites/*.svg    six expressions: neutral, happy, sad, surprised, angry, thinking
 server/proxy.js         zero-dependency Node backend: serves the app + proxies AI calls
 .env.example            the environment variables the proxy reads
-android/                Capacitor Android shell + the on-device inference plugin scaffold
+android/                Capacitor Android shell + the on-device inference plugin
 scripts/build-www.js    stages index.html + assets into www/ for Capacitor to bundle
 ```
 
@@ -34,7 +34,7 @@ There is one configuration block, near the top of the script in `index.html`:
 
 ```js
 const AI_CONFIG = {
-  provider: "proxy",       // "proxy" | "anthropic" | "openai" | "local"
+  provider: "proxy",       // "proxy" | "anthropic" | "openai" | "device" | "local"
   apiUrl: "/api/chat",
   apiKey: "",              // keep empty — see below
   model: "",               // blank: the proxy's COMPANION_MODEL wins
@@ -183,20 +183,45 @@ without either, and is enough to inspect the staged native project.
 
 ### On-device inference (`"device"` provider)
 
-`AI_CONFIG.provider = "device"` routes through a `CompanionLocalLlm` Capacitor
-plugin instead of the network, so the character can run with no data
-connection and no NVIDIA key. **As shipped, this is scaffolding, not a working
-local model:** the plugin and the JS-side provider branch are fully wired, but
-the native engine behind them (`StubLlmEngine`) always reports itself
-unavailable, because no model is bundled. A `"device"` session behaves exactly
-like a cloud provider with no key configured — it reports not-ready and the
-app runs on the offline brain — until a real engine is dropped in.
+`AI_CONFIG.provider = "device"` runs the character on the phone instead of over
+the network — no data connection, no API key, no NVIDIA account. Inference goes
+through the `CompanionLocalLlm` Capacitor plugin to LiteRT-LM (shipped for
+Android as MediaPipe's LLM Inference task), with GPU acceleration where the
+device supports it and a CPU fallback where it doesn't.
 
-See `LOCAL_AI_INVESTIGATION.md` for the research behind the recommended engine
-(LiteRT-LM) and model (Llama 3.2 3B, Q4_K_M), and
-`android/app/src/main/java/ai/companion/pixel/llm/README.md` for exactly what
-wiring in a real engine involves — it's a single new class implementing
-`LlmEngine`, swapped in for `StubLlmEngine`; nothing else moves.
+**The engine is real; the model is not included.** A model is 0.5-3 GB — too
+large to ship inside an APK, and not something to download over someone's
+mobile data unasked. So it's a file you put on the device:
+
+```bash
+adb push gemma3-1b-it-int4.task \
+  /sdcard/Android/data/ai.companion.pixel/files/models/
+```
+
+That directory needs no permission and no root, and a file manager works too.
+`gemma3-1b-it-int4.task` (529 MB, from [`litert-community`][hf]) is the
+recommended starting point. The app finds it on launch, loads it in the
+background, and names it in the status pill. With no model present it says so
+and runs on the offline brain, exactly as a cloud provider with no key does.
+
+[hf]: https://huggingface.co/litert-community
+
+Replies **stream token by token** into the bubble as they're generated, because
+a phone produces 3-12 tokens a second and a finished-reply-only UI would leave
+the character silent for most of a minute. The timeout is a stall detector
+rather than a total budget for the same reason: slow is allowed, silent isn't.
+
+Everything else is unchanged. The character's identity, personality, mood,
+relationship state and memories are composed into the same system prompt, and
+the same `{response, emotion}` pair comes back — switching between cloud and
+device touches no other part of the app.
+
+Adding the engine takes the debug APK from ~4 MB to ~62 MB (native libraries
+for two ABIs). `android/app/src/main/java/ai/companion/pixel/llm/README.md`
+covers where to get models, which formats work, how to get that size back for
+a cloud-only build, and the design decisions behind the parts that are less
+obvious than they look. `LOCAL_AI_INVESTIGATION.md` has the research the
+engine choice came out of.
 
 ## The companion scene
 
