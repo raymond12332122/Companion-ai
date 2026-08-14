@@ -14,7 +14,16 @@ data class GemmaMessage(val role: String, val content: String)
 data class GemmaGenerateRequest(
     val system: String,
     val messages: List<GemmaMessage>,
-    val temperature: Float
+    val temperature: Float,
+    // TEMP DEBUG — null preserves current behavior (no cap) for the normal
+    // companion flow. LlmInferenceSessionOptions exposes no max-output-
+    // tokens setting (confirmed by decompiling the .aar's Builder class:
+    // setTopK/setTopP/setTemperature/setRandomSeed/setLoraPath/
+    // setGraphOptions/setConstraintHandle/setPromptTemplates, nothing for
+    // output length), so this is enforced by cancelling generation once the
+    // exact tokenizer-measured output count reaches the cap — the model
+    // still produced every token itself, this just stops asking for more.
+    val maxOutputTokens: Int? = null
 )
 
 data class GemmaAvailability(
@@ -247,20 +256,49 @@ class GemmaEngine {
         session = active
 
         val assembled = StringBuilder()
+        var cancelledForLength = false // TEMP DEBUG
         try {
             active.addQueryChunk(prompt)
 
             val inferenceStart = System.currentTimeMillis() // TEMP DEBUG
+            val cap = request.maxOutputTokens // TEMP DEBUG
             val future = active.generateResponseAsync(ProgressListener<String> { partial, _ ->
                 if (!partial.isNullOrEmpty()) {
                     assembled.append(partial)
                     callback.onToken(partial)
+                    // TEMP DEBUG — no max-output-tokens API exists (see
+                    // GemmaGenerateRequest doc), so the cap is enforced here:
+                    // exact tokenizer count of what's assembled so far,
+                    // checked after each chunk, cancel once it's enough.
+                    if (cap != null && !cancelledForLength) {
+                        val soFar = try { active.sizeInTokens(assembled.toString()) } catch (t: Throwable) { -1 }
+                        if (soFar in cap..Int.MAX_VALUE) {
+                            cancelledForLength = true
+                            try {
+                                active.cancelGenerateResponseAsync()
+                            } catch (t: Throwable) {
+                                Log.w(TAG, "Cancel-at-cap failed", t)
+                            }
+                        }
+                    }
                 }
             })
 
-            val returned = future.get() ?: ""
+            // TEMP DEBUG — a length-cap cancellation is expected, not a
+            // failure: future.get() may throw for it, in which case what was
+            // already streamed into `assembled` is the real (truncated)
+            // output, not an error.
+            val raw = try {
+                val returned = future.get() ?: ""
+                if (returned.length >= assembled.length) returned else assembled.toString()
+            } catch (t: Throwable) {
+                if (cancelledForLength) {
+                    assembled.toString()
+                } else {
+                    throw t
+                }
+            }
             val inferenceMs = System.currentTimeMillis() - inferenceStart // TEMP DEBUG
-            val raw = if (returned.length >= assembled.length) returned else assembled.toString()
             // TEMP DEBUG — the model's actual output and exact token counts,
             // logged/captured before anything (stop-sequence trim, JSON/mood-
             // tag extraction) touches it. sizeInTokens() is the real tokenizer

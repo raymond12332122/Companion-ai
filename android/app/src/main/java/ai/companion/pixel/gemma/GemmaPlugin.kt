@@ -279,7 +279,8 @@ class GemmaPlugin : Plugin() {
         val request = GemmaGenerateRequest(
             system = system,
             messages = messages,
-            temperature = (call.getDouble("temperature") ?: 0.85).toFloat()
+            temperature = (call.getDouble("temperature") ?: 0.85).toFloat(),
+            maxOutputTokens = call.getInt("maxOutputTokens") // TEMP DEBUG — null unless caller sets it
         )
 
         val streamed = StringBuilder()

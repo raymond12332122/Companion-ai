@@ -1790,9 +1790,13 @@ function pushGemmaDebugMessage() {
  * AI_CONFIG.deviceFirstTokenMs, no GemmaStream, no effect on state.transport
  * or the normal conversation. Isolated on purpose, so a result here can only
  * be explained by the model + minimal prompt, not by anything else this app
- * does.
+ * does. maxOutputTokens caps the reply at a small, fixed size — see
+ * GemmaEngine's GemmaGenerateRequest doc for why that's enforced by
+ * cancelling generation rather than a native option (none exists).
  */
-async function runGemmaMinimalTest() {
+async function runGemmaMinimalTest(text) {
+  const userText = (text && text.trim()) || "Say hello in one short sentence.";
+
   if (!DeviceGemma) {
     pushMessage("system", "[Gemma minimal test] DeviceGemma bridge not available — not running in the Android app, or the plugin didn't register.");
     return;
@@ -1803,28 +1807,24 @@ async function runGemmaMinimalTest() {
     return;
   }
 
-  const startedAt = Date.now();
   try {
     const result = await DeviceGemma.generate({
       system: "",
-      messages: [{ role: "user", content: "What is 2 + 2?" }],
-      temperature: 0.85
+      messages: [{ role: "user", content: userText }],
+      temperature: 0.85,
+      maxOutputTokens: 60
     });
-    const roundTripMs = Date.now() - startedAt;
     const lines = [
-      "[Gemma minimal test] result:",
-      "Prompt tokens: " + (typeof result.promptTokens === "number" ? result.promptTokens : "?"),
-      "Generated tokens: " + (typeof result.outputTokens === "number" ? result.outputTokens : "?"),
+      "[Gemma minimal test] result for: " + JSON.stringify(userText),
+      "Final formatted input: " + (result.finalPrompt || "?"),
+      "Prompt token count: " + (typeof result.promptTokens === "number" ? result.promptTokens : "?"),
+      "Generated token count: " + (typeof result.outputTokens === "number" ? result.outputTokens : "?"),
       "Raw native output: " + JSON.stringify(result.rawOutput || ""),
-      "Parsed response: " + JSON.stringify(result.response || ""),
-      "Native inference time: " + (typeof result.inferenceMs === "number" ? result.inferenceMs + " ms" : "?"),
-      "Total round-trip (incl. bridge): " + roundTripMs + " ms",
-      "Final prompt sent to native inference:\n" + (result.finalPrompt || "?")
+      "Inference duration: " + (typeof result.inferenceMs === "number" ? result.inferenceMs + " ms" : "?")
     ];
     pushMessage("system", lines.join("\n"));
   } catch (err) {
-    const roundTripMs = Date.now() - startedAt;
-    pushMessage("system", "[Gemma minimal test] FAILED after " + roundTripMs + " ms — " +
+    pushMessage("system", "[Gemma minimal test] FAILED — " +
       (err && err.kind ? err.kind + ": " : "") + (err && err.message ? err.message : String(err)));
   }
 }
@@ -3880,14 +3880,17 @@ function runCommand(raw) {
   }
 
   // TEMP DEBUG — bypasses systemPrompt(), history, memory, relationship,
-  // and every other companion system entirely: sends exactly one message,
-  // "What is 2 + 2?", with no system text at all, straight to the Gemma
-  // plugin. Exists to answer one question in isolation from everything
-  // else this app does: does basic inference work at all on a minimal
-  // input? See runGemmaMinimalTest() below.
+  // and every other companion system entirely: sends exactly one message
+  // (default "Say hello in one short sentence.", or custom text after the
+  // command) with no system text at all, straight to the Gemma plugin.
+  // Exists to answer one question in isolation from everything else this
+  // app does: does basic inference work at all on a minimal input? See
+  // runGemmaMinimalTest() below.
   if (command === "/gemma-minimal-test") {
-    pushMessage("system", "Running minimal Gemma test — no personality, no memory, no history, no relationship, no event context. Just \"What is 2 + 2?\" with an empty system prompt.");
-    runGemmaMinimalTest();
+    const customText = raw.trim().slice("/gemma-minimal-test".length).trim();
+    pushMessage("system", "Running minimal Gemma test — no personality, no memory, no history, no relationship, no event context. Just " +
+      JSON.stringify(customText || "Say hello in one short sentence.") + " with an empty system prompt.");
+    runGemmaMinimalTest(customText);
     return true;
   }
 
