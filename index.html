@@ -1136,6 +1136,25 @@
             <p class="lai__note" id="lai-note"></p>
           </div>
         </section>
+
+        <!-- A second, independent on-device engine (android/…/gemma/), for the
+             "gemma" provider. Reuses the .lai styling above with its own IDs;
+             hidden the same way, and shown only when its own plugin exists. -->
+        <section class="stage__group" id="gemma-group" hidden>
+          <h3 class="stage__grouphead">Local Gemma</h3>
+          <div class="lai">
+            <div class="lai__model" id="gemma-model" hidden>
+              <span class="lai__name" id="gemma-name"></span>
+              <span class="lai__meta" id="gemma-meta"></span>
+            </div>
+            <div class="lai__bar" id="gemma-bar" hidden><div class="lai__fill" id="gemma-fill"></div></div>
+            <div class="lai__row">
+              <button class="stage__reset" id="gemma-import" type="button">Import model</button>
+              <button class="stage__reset lai__danger" id="gemma-remove" type="button" hidden>Remove</button>
+            </div>
+            <p class="lai__note" id="gemma-note"></p>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -1325,6 +1344,12 @@
  *                  fall through exactly as they would for a misconfigured
  *                  cloud provider. See /LOCAL_AI_INVESTIGATION.md and
  *                  android/app/.../llm/README.md.
+ *   "gemma"     -> run a single imported Gemma .task bundle on-device via the
+ *                  CompanionGemma Capacitor plugin (android/app/.../gemma/).
+ *                  Independent of "device": its own plugin, its own model
+ *                  slot, same MediaPipe/LiteRT-LM runtime underneath. Import
+ *                  a model in ⚙ → Local Gemma before this provider has
+ *                  anything to run.
  *   "local"     -> no network at all; use the built-in offline brain.
  *
  * NEVER commit a real API key here. Anything in `apiKey` is shipped to every
@@ -1471,6 +1496,105 @@ const DeviceStream = {
       // The typing indicator has done its job the moment there are words to
       // read; leaving both up says the character is about to speak while it
       // is already speaking.
+      setTyping(false);
+      this.row = document.createElement("div");
+      this.row.className = "msg msg--bot msg--streaming";
+      const avatar = document.createElement("div");
+      avatar.className = "msg__avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      avatar.textContent = COMPANION.initials;
+      this.bubble = document.createElement("div");
+      this.bubble.className = "msg__bubble";
+      this.row.appendChild(avatar);
+      this.row.appendChild(this.bubble);
+      dom.chat.appendChild(this.row);
+    }
+    this.bubble.textContent = text;
+    scrollChat();
+  },
+
+  end: function () {
+    if (this.handle) {
+      const pending = this.handle;
+      this.handle = null;
+      Promise.resolve(pending).then(function (listener) {
+        if (listener && typeof listener.remove === "function") listener.remove();
+      }).catch(function () { /* already gone */ });
+    }
+    if (this.row && this.row.parentNode) this.row.parentNode.removeChild(this.row);
+    this.row = null;
+    this.bubble = null;
+  }
+};
+
+/**
+ * Bridge to the CompanionGemma Capacitor plugin (android/app/.../gemma/).
+ * A separate, independent plugin from CompanionLocalLlm/DeviceLlm above —
+ * its own native class, its own registration, its own model slot. Built as
+ * a standalone fallback after DeviceLlm's registration could not be
+ * confirmed reaching the WebView; nothing here depends on that plugin at
+ * all, and nothing above depends on this one.
+ */
+const DeviceGemma = (window.Capacitor && typeof window.Capacitor.registerPlugin === "function")
+  ? window.Capacitor.registerPlugin("CompanionGemma")
+  : null;
+
+/** Last answer from DeviceGemma.isAvailable(): {available, loaded, reason, modelId, sizeBytes, backend}. */
+let gemmaStatus = null;
+
+async function refreshGemmaStatus() {
+  if (!DeviceGemma) return null;
+  try {
+    gemmaStatus = await DeviceGemma.isAvailable();
+  } catch (err) {
+    gemmaStatus = { available: false, loaded: false, reason: "plugin_error" };
+  }
+  return gemmaStatus;
+}
+
+async function checkGemmaAvailable() {
+  if (!DeviceGemma) return false;
+  const status = gemmaStatus || await refreshGemmaStatus();
+  return Boolean(status && status.available);
+}
+
+async function loadGemmaModel() {
+  if (!DeviceGemma) return null;
+  const outcome = await DeviceGemma.loadModel({});
+  if (gemmaStatus) {
+    gemmaStatus.loaded = true;
+    gemmaStatus.backend = outcome && outcome.backend ? outcome.backend : gemmaStatus.backend;
+  }
+  return outcome;
+}
+
+function describeGemmaModel() {
+  const status = gemmaStatus;
+  if (!status || !status.modelId) return "Gemma (local)";
+  const gb = status.sizeBytes ? " · " + (status.sizeBytes / 1073741824).toFixed(1) + " GB" : "";
+  const backend = status.backend ? " · " + status.backend.toUpperCase() : "";
+  return status.modelId + gb + backend;
+}
+
+/** Streaming bubble for the "gemma" provider — same idea as DeviceStream, own event name. */
+const GemmaStream = {
+  row: null,
+  bubble: null,
+  handle: null,
+
+  begin: function (onActivity) {
+    this.end();
+    if (!DeviceGemma) return;
+    const self = this;
+    this.handle = DeviceGemma.addListener("gemmaToken", function (event) {
+      if (onActivity) onActivity();
+      self.render(event && typeof event.partial === "string" ? event.partial : "");
+    });
+  },
+
+  render: function (text) {
+    if (!text) return;
+    if (!this.row) {
       setTyping(false);
       this.row = document.createElement("div");
       this.row.className = "msg msg--bot msg--streaming";
@@ -2593,6 +2717,15 @@ const dom = {
   laiImport: document.getElementById("lai-import"),
   laiRemove: document.getElementById("lai-remove"),
   laiNote: document.getElementById("lai-note"),
+  gemmaGroup: document.getElementById("gemma-group"),
+  gemmaModel: document.getElementById("gemma-model"),
+  gemmaName: document.getElementById("gemma-name"),
+  gemmaMeta: document.getElementById("gemma-meta"),
+  gemmaBar: document.getElementById("gemma-bar"),
+  gemmaFill: document.getElementById("gemma-fill"),
+  gemmaImport: document.getElementById("gemma-import"),
+  gemmaRemove: document.getElementById("gemma-remove"),
+  gemmaNote: document.getElementById("gemma-note"),
   companionBadge: document.getElementById("companion-badge"),
   typingLabel: document.getElementById("typing-label"),
   moodLabel: document.getElementById("mood-label"),
@@ -3854,6 +3987,54 @@ async function callProvider(userText, options) {
     });
   }
 
+  if (provider === "gemma") {
+    if (!DeviceGemma) throw AiError("config", "Local Gemma inference isn't available outside the Android app");
+    if (!(await checkGemmaAvailable())) {
+      throw AiError("config", "No Gemma model imported yet — see ⚙ → Local Gemma");
+    }
+
+    let rearm = null;
+    let disarm = null;
+    const budget = new Promise(function (_, reject) {
+      let timer;
+      rearm = function (ms) {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(function () {
+          if (DeviceGemma.cancel) DeviceGemma.cancel().catch(function () { /* nothing running */ });
+          reject(AiError("timeout", "The on-device model stopped responding"));
+        }, ms);
+      };
+      disarm = function () { window.clearTimeout(timer); };
+      rearm(AI_CONFIG.deviceFirstTokenMs);
+    });
+
+    GemmaStream.begin(function () { rearm(AI_CONFIG.deviceStallMs); });
+
+    let gemmaResult;
+    try {
+      gemmaResult = await Promise.race([
+        DeviceGemma.generate({
+          system: systemPrompt(userText, opts),
+          messages: messages,
+          maxTokens: AI_CONFIG.maxTokens,
+          temperature: AI_CONFIG.temperature
+        }),
+        budget
+      ]);
+    } catch (err) {
+      if (err && err.kind) throw err;
+      throw AiError("network", "On-device inference failed: " + (err && err.message ? err.message : String(err)));
+    } finally {
+      disarm();
+      GemmaStream.end();
+    }
+
+    return JSON.stringify({
+      response: gemmaResult && typeof gemmaResult.response === "string" ? gemmaResult.response : "",
+      emotion: gemmaResult && typeof gemmaResult.emotion === "string" ? gemmaResult.emotion : null
+    });
+  }
+
   if (provider === "proxy") {
     const body = {
       system: systemPrompt(userText, opts),
@@ -4359,7 +4540,9 @@ async function askCompanion(userText, relationshipEventKinds, options) {
   // turns don't each pay a timeout. "Try again" is the user explicitly asking
   // for the backend, so it lifts that parking rather than replaying offline.
   if (opts.retry && AI_CONFIG.provider !== "local") {
-    state.transport = AI_CONFIG.provider === "device" ? "device" : "remote";
+    state.transport = AI_CONFIG.provider === "device" ? "device"
+      : AI_CONFIG.provider === "gemma" ? "gemma"
+      : "remote";
   }
 
   // Fade the standing mood before the prompt is composed, so what the model
@@ -4531,6 +4714,38 @@ async function detectBackend() {
       setStatus("local", "Model failed to load — offline brain");
       LocalAiUI.render();
       console.warn("[companion] on-device model failed to load:", err && err.message ? err.message : err);
+    });
+    return;
+  }
+
+  if (AI_CONFIG.provider === "gemma") {
+    if (!DeviceGemma) {
+      state.transport = "local";
+      setStatus("local", "Not running in the Android app — offline brain");
+      return;
+    }
+    const status = await refreshGemmaStatus();
+    if (!status || !status.available) {
+      state.transport = "local";
+      setStatus("local", "No Gemma model — import one in ⚙ → Local Gemma");
+      return;
+    }
+
+    state.transport = "gemma";
+    if (status.loaded) {
+      setStatus("device", "Gemma: " + describeGemmaModel());
+      return;
+    }
+
+    setStatus("device", "Loading " + describeGemmaModel() + "…");
+    loadGemmaModel().then(function () {
+      setStatus("device", "Gemma: " + describeGemmaModel());
+      GemmaLocalUI.render();
+    }).catch(function (err) {
+      state.transport = "local";
+      setStatus("local", "Model failed to load — offline brain");
+      GemmaLocalUI.render();
+      console.warn("[companion] gemma model failed to load:", err && err.message ? err.message : err);
     });
     return;
   }
@@ -5941,7 +6156,7 @@ const EventReactions = (function () {
   async function aiReaction(event, situation) {
     if (!EventManager.settings().aiReactions) return false;
     if (aiReactionsUsed >= EVENT_TUNING.aiReactionsPerSession) return false;
-    if (AI_CONFIG.provider === "local" || (state.transport !== "remote" && state.transport !== "device")) return false;
+    if (AI_CONFIG.provider === "local" || (state.transport !== "remote" && state.transport !== "device" && state.transport !== "gemma")) return false;
     if (state.busy) return false;
 
     aiReactionsUsed += 1;
@@ -6309,6 +6524,175 @@ const LocalAiUI = (function () {
   return { init: init, render: render };
 }());
 
+/* -------------------------------------------------------------------------
+ * Local Gemma settings: import a model, load it, delete it. Same shape as
+ * LocalAiUI immediately above, talking to DeviceGemma instead of DeviceLlm —
+ * a separate plugin, a separate model slot, its own section of the panel.
+ * ---------------------------------------------------------------------- */
+const GemmaLocalUI = (function () {
+  let busy = false;
+  let progressHandle = null;
+
+  function bytes(n) {
+    if (!n || n <= 0) return "";
+    const gb = n / 1073741824;
+    return gb >= 1 ? gb.toFixed(1) + " GB" : (n / 1048576).toFixed(0) + " MB";
+  }
+
+  function progress(percent) {
+    if (percent === null) {
+      dom.gemmaBar.hidden = true;
+      dom.gemmaBar.classList.remove("lai__bar--unknown");
+      return;
+    }
+    dom.gemmaBar.hidden = false;
+    if (percent < 0) {
+      dom.gemmaBar.classList.add("lai__bar--unknown");
+      dom.gemmaFill.style.width = "";
+    } else {
+      dom.gemmaBar.classList.remove("lai__bar--unknown");
+      dom.gemmaFill.style.width = percent + "%";
+    }
+  }
+
+  function note(text, kind) {
+    dom.gemmaNote.textContent = text || "";
+    dom.gemmaNote.className = "lai__note" + (kind ? " lai__note--" + kind : "");
+  }
+
+  function render() {
+    const status = gemmaStatus;
+    const has = Boolean(status && status.modelId);
+    dom.gemmaModel.hidden = !has;
+    if (has) {
+      dom.gemmaName.textContent = status.modelId;
+      const parts = [];
+      if (status.sizeBytes) parts.push(bytes(status.sizeBytes));
+      parts.push(status.loaded ? "loaded" : "not loaded yet");
+      if (status.backend) parts.push(status.backend.toUpperCase());
+      dom.gemmaMeta.textContent = parts.join(" · ");
+    }
+
+    dom.gemmaImport.textContent = has ? "Replace model" : "Import model";
+    dom.gemmaImport.disabled = busy;
+    dom.gemmaRemove.hidden = !has;
+    dom.gemmaRemove.disabled = busy;
+
+    if (busy) return;
+    if (!has) {
+      note("No model yet. Import a gemma3-1b-it-int4.task bundle — litert-community on Hugging Face publishes them.");
+    } else if (AI_CONFIG.provider !== "gemma") {
+      note("Ready, but this build is set to the \"" + AI_CONFIG.provider + "\" provider, so replies still come from there.");
+    } else {
+      note("");
+    }
+  }
+
+  function listenForProgress() {
+    if (progressHandle) return;
+    progressHandle = DeviceGemma.addListener("importProgress", function (event) {
+      const percent = event && typeof event.percent === "number" ? event.percent : -1;
+      progress(percent);
+      const copied = event && event.copiedBytes ? bytes(event.copiedBytes) : "";
+      const total = event && event.totalBytes > 0 ? " of " + bytes(event.totalBytes) : "";
+      note("Copying" + (copied ? " " + copied + total : "") + "… you can leave this panel open.");
+    });
+  }
+
+  function stopListening() {
+    if (!progressHandle) return;
+    const handle = progressHandle;
+    progressHandle = null;
+    Promise.resolve(handle).then(function (h) { if (h && h.remove) h.remove(); }).catch(function () {});
+  }
+
+  async function loadAndReport() {
+    note("Loading the model…");
+    try {
+      await loadGemmaModel();
+      await refreshGemmaStatus();
+      if (AI_CONFIG.provider === "gemma") {
+        state.transport = "gemma";
+        setStatus("device", "Gemma: " + describeGemmaModel());
+      }
+      note("Ready — " + describeGemmaModel(), "ok");
+    } catch (err) {
+      const detail = err && err.message ? err.message : "the engine wouldn't load it";
+      note("Imported, but loading failed: " + detail, "error");
+      if (AI_CONFIG.provider === "gemma") {
+        state.transport = "local";
+        setStatus("local", "Model failed to load — offline brain");
+      }
+    }
+  }
+
+  async function onImport() {
+    if (busy) return;
+    busy = true;
+    render();
+    note("Pick the model file…");
+    listenForProgress();
+    try {
+      const outcome = await DeviceGemma.importModel({});
+      if (!outcome || !outcome.imported) {
+        progress(null);
+        busy = false;
+        render();
+        return;
+      }
+      progress(100);
+      await refreshGemmaStatus();
+      busy = false;
+      render();
+      progress(null);
+      await loadAndReport();
+      render();
+    } catch (err) {
+      progress(null);
+      busy = false;
+      await refreshGemmaStatus();
+      render();
+      note(err && err.message ? err.message : "The import failed.", "error");
+    } finally {
+      stopListening();
+    }
+  }
+
+  async function onRemove() {
+    const status = gemmaStatus;
+    if (busy || !status || !status.modelId) return;
+    if (!window.confirm("Delete " + status.modelId + " from this app? You'd have to import it again.")) return;
+
+    busy = true;
+    render();
+    try {
+      await DeviceGemma.removeModel({});
+      await refreshGemmaStatus();
+      busy = false;
+      render();
+      if (AI_CONFIG.provider === "gemma") {
+        state.transport = "local";
+        setStatus("local", "No Gemma model — offline brain");
+      }
+      note("Removed.", "ok");
+    } catch (err) {
+      busy = false;
+      render();
+      note(err && err.message ? err.message : "Couldn't remove the model.", "error");
+    }
+  }
+
+  function init() {
+    if (!DeviceGemma) return;
+    dom.gemmaGroup.hidden = false;
+    dom.gemmaImport.addEventListener("click", onImport);
+    dom.gemmaRemove.addEventListener("click", onRemove);
+    refreshGemmaStatus().then(render).catch(render);
+  }
+
+  return { init: init, render: render };
+}());
+
 /**
  * One namespaced handle onto the modules for debugging in the console and for
  * automated checks. Everything here already lives in the page; no credential
@@ -6319,6 +6703,7 @@ window.__companion = {
   Profile: Profile, Memory: Memory, Stage: Stage, sprites: sprites,
   EventManager: EventManager, EventSources: EventSources, EventReactions: EventReactions,
   LocalAiUI: LocalAiUI, DeviceLlm: DeviceLlm,
+  GemmaLocalUI: GemmaLocalUI, DeviceGemma: DeviceGemma,
   EVENT_TYPES: EVENT_TYPES, EVENT_REGISTRY: EVENT_REGISTRY, EVENT_TUNING: EVENT_TUNING,
   timePeriodFor: timePeriodFor,
   CHARACTER: CHARACTER, COMPANION: COMPANION, AI_CONFIG: AI_CONFIG,
@@ -6358,6 +6743,7 @@ window.__companion = {
   updateSidebar();
   detectBackend();
   LocalAiUI.init();
+  GemmaLocalUI.init();
 
   if (needsSetup) {
     dom.shell.hidden = true;
