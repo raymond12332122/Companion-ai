@@ -45,6 +45,17 @@ class GemmaPlugin : Plugin() {
     private val importCancelled = AtomicBoolean(false)
     @Volatile private var importing = false
 
+    /**
+     * Called by PluginHandle right after Capacitor constructs this plugin and
+     * sets its bridge/context — i.e. exactly when registration actually
+     * completes, not merely when the class is present in the dex. Temporary
+     * logging, for confirming JS -> Capacitor -> GemmaPlugin bridge
+     * connectivity via `adb logcat -s CompanionGemma`.
+     */
+    override fun load() {
+        android.util.Log.i(TAG, "GemmaPlugin.load() — registered with the bridge as \"CompanionGemma\"")
+    }
+
     override fun handleOnDestroy() {
         importCancelled.set(true)
         engine.unload()

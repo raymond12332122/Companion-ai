@@ -1535,8 +1535,19 @@ const DeviceStream = {
  * confirmed reaching the WebView; nothing here depends on that plugin at
  * all, and nothing above depends on this one.
  */
-const DeviceGemma = (window.Capacitor && typeof window.Capacitor.registerPlugin === "function")
-  ? window.Capacitor.registerPlugin("CompanionGemma")
+/**
+ * `window.Capacitor.registerPlugin` is a function `@capacitor/core`'s npm
+ * package provides for bundler-based apps (`import { registerPlugin } from
+ * '@capacitor/core'`). This app has no bundler and never loads that package,
+ * so that function has never existed here — confirmed by reading the actual
+ * JS the native Android bridge injects (JSExport.java in @capacitor/android):
+ * it defines `window.Capacitor = { Plugins: {} }` and then, once per plugin
+ * registered in MainActivity, writes the plugin's methods directly onto
+ * `window.Capacitor.Plugins[pluginName]`. That object is where a plugin
+ * actually appears in this runtime, `registerPlugin` or no.
+ */
+const DeviceGemma = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CompanionGemma)
+  ? window.Capacitor.Plugins.CompanionGemma
   : null;
 
 /** Last answer from DeviceGemma.isAvailable(): {available, loaded, reason, modelId, sizeBytes, backend}. */
@@ -6570,9 +6581,18 @@ const GemmaLocalUI = (function () {
       dom.gemmaImport.textContent = "Import model";
       dom.gemmaImport.disabled = true;
       dom.gemmaRemove.hidden = true;
-      note("The native Gemma plugin isn't reachable from this WebView (window.Capacitor" +
-        (window.Capacitor ? ".registerPlugin returned nothing usable" : " is undefined") +
-        "). This isn't a missing feature — it's the bridge not connecting.", "error");
+      // Concrete, checkable state rather than a guess: exactly what
+      // window.Capacitor.Plugins holds, so "not registered" and "registered
+      // under a different name" read differently on screen.
+      const pluginNames = (window.Capacitor && window.Capacitor.Plugins)
+        ? Object.keys(window.Capacitor.Plugins)
+        : null;
+      const detail = !window.Capacitor
+        ? "window.Capacitor is undefined"
+        : !window.Capacitor.Plugins
+          ? "window.Capacitor.Plugins is undefined"
+          : "window.Capacitor.Plugins has [" + (pluginNames.join(", ") || "nothing") + "], no \"CompanionGemma\"";
+      note("Native bridge diagnostic: " + detail + ".", "error");
       return;
     }
 
