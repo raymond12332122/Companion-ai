@@ -1,11 +1,15 @@
 package ai.companion.pixel.llm
 
+import android.app.Activity
+import androidx.activity.result.ActivityResult
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
+import java.io.File
 
 /**
  * Bridges the companion's provider abstraction to an on-device model.
@@ -24,8 +28,10 @@ import com.getcapacitor.annotation.CapacitorPlugin
 class CompanionLocalLlmPlugin : Plugin() {
 
     private val engine: LlmEngine = MediaPipeLlmEngine()
+    private val importer = ModelImporter()
 
     override fun handleOnDestroy() {
+        importer.cancel()
         engine.unload()
         super.handleOnDestroy()
     }
@@ -42,25 +48,176 @@ class CompanionLocalLlmPlugin : Plugin() {
         result.put("sizeBytes", status.sizeBytes)
         result.put("backend", status.backend)
         result.put("modelDir", ModelCatalog.preferredDropDir(context))
+        // Lets the UI offer "Import a model" as the fix for having none,
+        // rather than printing a directory path nobody can navigate to.
+        result.put("canImport", true)
+        result.put("importedFrom", ModelStore.importedSourceName(context))
+        status.modelPath?.let { result.put("imported", ModelStore.isImported(context, it)) }
         call.resolve(result)
     }
 
     /** Every model file on the device, so the UI can name one instead of guessing. */
     @PluginMethod
     fun listModels(call: PluginCall) {
-        val models = JSArray()
-        for (candidate in engine.listModels(context)) {
-            val entry = JSObject()
-            entry.put("id", candidate.id)
-            entry.put("path", candidate.path)
-            entry.put("sizeBytes", candidate.sizeBytes)
-            entry.put("family", candidate.family)
-            models.put(entry)
-        }
         val result = JSObject()
-        result.put("models", models)
+        result.put("models", modelsArray())
         result.put("modelDir", ModelCatalog.preferredDropDir(context))
         call.resolve(result)
+    }
+
+    private fun modelsArray(): JSArray {
+        val models = JSArray()
+        for (candidate in engine.listModels(context)) {
+            models.put(describe(candidate))
+        }
+        return models
+    }
+
+    private fun describe(candidate: ModelCandidate) = JSObject().apply {
+        put("id", candidate.id)
+        put("path", candidate.path)
+        put("sizeBytes", candidate.sizeBytes)
+        put("family", candidate.family)
+        put("imported", candidate.imported)
+        put("selected", candidate.selected)
+    }
+
+    /**
+     * Opens the system document picker and copies the chosen file into the
+     * app's own storage.
+     *
+     * This exists because the documented alternative — put the file in
+     * `Android/data/…/files/models/` yourself — stopped being followable on a
+     * phone with no computer attached: since Android 11 that directory is
+     * hidden from third-party file managers. The picker reaches Downloads, an
+     * SD card or Drive with no storage permission at all, which is both the
+     * easier route and the one that does not ask for `MANAGE_EXTERNAL_STORAGE`.
+     *
+     * resolves: `{imported, cancelled, model?: {...}, replacedExisting?}`.
+     * Backing out of the picker resolves with `cancelled: true` rather than
+     * rejecting — deciding not to pick a file is not an error.
+     *
+     * While copying, emits `importProgress` carrying `{copiedBytes,
+     * totalBytes, percent}`; a half-gigabyte copy is slow enough that a UI
+     * with no progress reads as a hang.
+     */
+    @PluginMethod
+    fun importModel(call: PluginCall) {
+        if (importer.isRunning) {
+            call.reject("An import is already running", "busy")
+            return
+        }
+        startActivityForResult(call, importer.pickIntent(), "modelPicked")
+    }
+
+    @ActivityCallback
+    fun modelPicked(call: PluginCall?, result: ActivityResult) {
+        if (call == null) return
+
+        val uri = result.data?.data
+        if (result.resultCode != Activity.RESULT_OK || uri == null) {
+            call.resolve(JSObject().apply {
+                put("imported", false)
+                put("cancelled", true)
+            })
+            return
+        }
+
+        importer.importFrom(context, uri, object : ModelImporter.Listener {
+            override fun onProgress(copiedBytes: Long, totalBytes: Long) {
+                notifyListeners("importProgress", JSObject().apply {
+                    put("copiedBytes", copiedBytes)
+                    put("totalBytes", totalBytes)
+                    put("percent", if (totalBytes > 0) (copiedBytes * 100 / totalBytes).toInt() else -1)
+                })
+            }
+
+            override fun onDone(candidate: ModelCandidate, replacedExisting: Boolean) {
+                // Whatever is in memory is now the wrong model, or the same
+                // file's previous contents. Dropping it costs one reload and
+                // removes every way for the two to disagree.
+                engine.unload()
+                call.resolve(JSObject().apply {
+                    put("imported", true)
+                    put("cancelled", false)
+                    put("replacedExisting", replacedExisting)
+                    put("model", describe(candidate.copy(imported = true, selected = true)))
+                })
+            }
+
+            override fun onError(message: String, code: String) {
+                if (code == "cancelled") {
+                    call.resolve(JSObject().apply {
+                        put("imported", false)
+                        put("cancelled", true)
+                    })
+                } else {
+                    call.reject(message, code)
+                }
+            }
+        })
+    }
+
+    /** Abandons an in-flight [importModel]. The partial file is cleaned up. */
+    @PluginMethod
+    fun cancelImport(call: PluginCall) {
+        importer.cancel()
+        call.resolve()
+    }
+
+    /**
+     * options: `{ path: string }` — deletes a model this app imported.
+     * Refuses paths outside the app's own model directories, so a bug upstream
+     * cannot turn this into a general-purpose delete.
+     */
+    @PluginMethod
+    fun removeModel(call: PluginCall) {
+        val path = call.getString("path")
+        if (path.isNullOrBlank()) {
+            call.reject("Missing \"path\"", "invalid_input")
+            return
+        }
+        if (!ModelStore.isImported(context, path)) {
+            call.reject("That model wasn't imported by this app, so it isn't ours to delete.", "not_removable")
+            return
+        }
+
+        val loaded = engine.availability(context).modelPath
+        if (loaded == path) engine.unload()
+
+        if (!importer.remove(context, path)) {
+            call.reject("Couldn't delete the model file.", "io_error")
+            return
+        }
+        call.resolve(JSObject().apply {
+            put("removed", true)
+            put("models", modelsArray())
+        })
+    }
+
+    /**
+     * options: `{ path: string }` — makes one of the models on the device the
+     * one that gets loaded, and remembers it across restarts. With nothing
+     * selected the catalog picks the largest, which is a decent guess and a
+     * poor override of somebody who meant the other one.
+     */
+    @PluginMethod
+    fun selectModel(call: PluginCall) {
+        val path = call.getString("path")
+        if (path.isNullOrBlank()) {
+            call.reject("Missing \"path\"", "invalid_input")
+            return
+        }
+        if (!File(path).isFile) {
+            call.reject("That model file is no longer on the device.", "not_found")
+            return
+        }
+        if (engine.availability(context).modelPath != path) engine.unload()
+        ModelStore.select(context, path)
+        call.resolve(JSObject().apply {
+            put("selected", path)
+            put("models", modelsArray())
+        })
     }
 
     /**

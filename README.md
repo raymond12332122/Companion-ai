@@ -191,18 +191,32 @@ device supports it and a CPU fallback where it doesn't.
 
 **The engine is real; the model is not included.** A model is 0.5-3 GB — too
 large to ship inside an APK, and not something to download over someone's
-mobile data unasked. So it's a file you put on the device:
+mobile data unasked. So it's a file you supply, and the app imports it:
+
+> ⚙ (on the stage) → **Local AI** → **Import model** → pick the file
+
+That opens the system document picker, which can reach Downloads, an SD card
+or Drive, and copies the file into the app's own storage. It needs **no storage
+permission** — not `MANAGE_EXTERNAL_STORAGE`, not `READ_EXTERNAL_STORAGE` — no
+root, and no computer. The file is checked before the copy starts, so a GGUF or
+a half-finished download is refused in a sentence rather than as a native crash
+several minutes later. The choice is remembered across restarts, and the same
+panel removes it again.
+
+`gemma3-1b-it-int4.task` (529 MB, from [`litert-community`][hf]) is the
+recommended starting point. **GGUF does not work** — this runtime reads `.task`
+and `.litertlm` bundles.
+
+With a computer attached, `adb` still works and skips the copy:
 
 ```bash
 adb push gemma3-1b-it-int4.task \
   /sdcard/Android/data/ai.companion.pixel/files/models/
 ```
 
-That directory needs no permission and no root, and a file manager works too.
-`gemma3-1b-it-int4.task` (529 MB, from [`litert-community`][hf]) is the
-recommended starting point. The app finds it on launch, loads it in the
-background, and names it in the status pill. With no model present it says so
-and runs on the offline brain, exactly as a cloud provider with no key does.
+Either way the app finds the model on launch, loads it in the background, and
+names it in the status pill. With no model present it says so and runs on the
+offline brain, exactly as a cloud provider with no key does.
 
 [hf]: https://huggingface.co/litert-community
 

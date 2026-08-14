@@ -25,12 +25,43 @@ The engine recommended below is now integrated and running. What shipped:
   on elapsed time. It still returns the same `{"response", "emotion"}` shape,
   so `parseReply()` and everything above it are untouched.
 
-**Deliberately still not done: no model file, anywhere.** The engine looks for
-one on the device (`/sdcard/Android/data/ai.companion.pixel/files/models/`)
-and reports itself unavailable until it finds one, which the app treats
-exactly like a cloud provider with no key. Bundling 0.5-3 GB in an APK is not
-distributable, and downloading it unasked spends someone's mobile data; a
-download-and-verify flow with real consent UX is its own change.
+**Deliberately still not done: no model file, anywhere.** The engine reports
+itself unavailable until it finds one, which the app treats exactly like a
+cloud provider with no key. Bundling 0.5-3 GB in an APK is not distributable,
+and downloading it unasked spends someone's mobile data.
+
+### Getting a model in
+
+The first instruction — `adb push` into
+`/sdcard/Android/data/ai.companion.pixel/files/models/` — turned out to assume
+a computer. Since Android 11 no third-party file manager can browse into
+another app's data directory, so on a phone with no cable that instruction has
+no valid reading at all, and the phone is exactly where this feature lives.
+
+So ⚙ → **Local AI** → **Import model** opens the system document picker
+(`ACTION_OPEN_DOCUMENT`) and copies the chosen file into `filesDir/models`.
+This needs **no storage permission of any kind** — `MANAGE_EXTERNAL_STORAGE`
+in particular is the permission Google removes apps from Play for requesting,
+and nothing here goes near it. The copy is unavoidable rather than
+preferential: `LlmInference` memory-maps the model by filesystem path in
+native code and cannot accept a `content://` URI.
+
+What that bought, beyond working without a computer:
+
+- **A refusal that explains itself.** The first 64 bytes are matched against
+  real signatures before the copy starts. A GGUF file — the single most likely
+  wrong download — is named as one, rather than failing 500 MB later inside
+  native graph construction with an error that mentions neither the file nor
+  the reason. Renaming it to `.task` does not get it through; the check is on
+  content.
+- **A free-space check before, not during.** Half a gigabyte that fails at 90%
+  is worse than one that never starts.
+- **A remembered choice.** With two models present the catalog's "largest
+  wins" guess is a good default and a bad override of somebody who explicitly
+  picked the smaller one.
+
+`adb push` still works and still skips the copy — both directories are
+scanned, so neither route is privileged.
 
 ### Where this diverged from the plan below
 
@@ -284,8 +315,11 @@ done; the rest are still open, and still deliberately so.
 - ✅ Creating the Capacitor plugin
 - ✅ Integrating with the existing provider system
 - ✅ Updating the UI for local inference (streaming, load status)
+- ✅ Model management UI — import via the system document picker, switch
+  between models, delete. See "Getting a model in" below.
 - ❌ Downloading or bundling any model file — user-supplied, see above
-- ❌ Model management UI (browse, download, switch, delete)
+- ❌ In-app download of a model from a catalogue (the import takes a file that
+  is already on the phone; fetching one is still the browser's job)
 - ❌ Testing on actual Android hardware — the build is verified, the
   inference path is not; every latency figure below is still an estimate
 - ❌ NPU delegates and per-chipset tuning
@@ -297,9 +331,10 @@ done; the rest are still open, and still deliberately so.
 1. **Run it on a real phone.** Nothing below has been measured on hardware.
    Load time, tokens/second, memory headroom and thermal behaviour on a
    mid-range device are all still projections.
-2. **Model management UI.** Currently a model is a file someone pushes over
-   `adb`. A download-with-consent flow, a size/space check, and a picker for
-   switching between models is the natural next change.
+2. **Download a model from inside the app.** The import handles a file that is
+   already on the phone; getting it there is still a trip to the browser. A
+   catalogue with sizes, a resumable download and a "this will use 529 MB of
+   your data" consent step is the remaining half of that story.
 3. **Tune the context window.** `CONTEXT_TOKENS = 2048` was chosen to fit the
    character's system prompt plus 20 turns of history without truncating the
    character's own definition. Whether that holds under a long relationship

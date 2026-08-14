@@ -7,7 +7,11 @@ data class ModelCandidate(
     val id: String,
     val path: String,
     val sizeBytes: Long,
-    val family: String
+    val family: String,
+    /** Written by the app's own import, and therefore safe to offer to delete. */
+    val imported: Boolean = false,
+    /** The one the user chose, rather than the one the catalog would guess. */
+    val selected: Boolean = false
 )
 
 /**
@@ -19,15 +23,16 @@ data class ModelCandidate(
  * asking. So the model is something the user puts on the device, and this
  * class's whole job is noticing that they did.
  *
- * The primary location is the app's own external files directory, because it
- * is the one place writable from a host machine without granting the app any
- * storage permission at all:
+ * There are two ways one gets there. The one that needs no computer is
+ * Settings → Local AI → Import model, which opens the system document picker
+ * and copies the chosen file into `filesDir/models` ([ModelImporter]). The
+ * other, for a machine with `adb` attached, is dropping it straight into the
+ * app's external files directory:
  *
  *   adb push gemma3-1b-it-int4.task \
  *     /sdcard/Android/data/ai.companion.pixel/files/models/
  *
- * A file manager can drop one in the same folder. Internal storage is checked
- * too, for builds that want the model unreachable from outside the app.
+ * Both locations are scanned, so neither route is privileged over the other.
  */
 object ModelCatalog {
 
@@ -71,6 +76,7 @@ object ModelCatalog {
     fun list(context: Context): List<ModelCandidate> {
         val seen = HashSet<String>()
         val found = ArrayList<ModelCandidate>()
+        val selectedPath = ModelStore.selectedPath(context)
 
         for (root in searchRoots(context)) {
             val files = root.takeIf { it.isDirectory }?.listFiles() ?: continue
@@ -85,17 +91,24 @@ object ModelCatalog {
                         id = file.name,
                         path = file.absolutePath,
                         sizeBytes = file.length(),
-                        family = ChatTemplate.familyFor(file.name).id
+                        family = ChatTemplate.familyFor(file.name).id,
+                        imported = ModelStore.isImported(context, file.absolutePath),
+                        selected = file.absolutePath == selectedPath
                     )
                 )
             }
         }
 
         return found.sortedWith(
-            compareBy<ModelCandidate> { candidate ->
-                val name = candidate.id.lowercase()
-                EXTENSIONS.indexOfFirst { name.endsWith(it) }.takeIf { it >= 0 } ?: EXTENSIONS.size
-            }.thenByDescending { it.sizeBytes }
+            // An explicit choice outranks every heuristic below it. Those
+            // heuristics exist to guess well when nobody has chosen; once
+            // somebody has, guessing over them is just being wrong on purpose.
+            compareByDescending<ModelCandidate> { it.selected }
+                .thenBy { candidate ->
+                    val name = candidate.id.lowercase()
+                    EXTENSIONS.indexOfFirst { name.endsWith(it) }.takeIf { it >= 0 } ?: EXTENSIONS.size
+                }
+                .thenByDescending { it.sizeBytes }
         )
     }
 

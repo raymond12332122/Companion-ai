@@ -14,19 +14,43 @@ Inference task (`com.google.mediapipe:tasks-genai`). It is real and it works.
 
 Nothing is bundled in the APK and nothing is downloaded automatically. A
 model is 0.5-3 GB: too large to ship inside an app, and not something to pull
-over someone's mobile data without asking. So it is a file you put there.
+over someone's mobile data without asking. So it is a file you supply.
 
-Download a **MediaPipe bundle** — a `.task` or `.litertlm` file — and push it
-to the app's own directory:
+Download a **MediaPipe bundle** — a `.task` or `.litertlm` file — anywhere on
+the phone, then:
+
+> ⚙ → **Local AI** → **Import model**
+
+The system document picker opens, reaches Downloads or an SD card or Drive,
+and [`ModelImporter`](ModelImporter.kt) copies the chosen file into
+`filesDir/models`. No storage permission is involved — not
+`MANAGE_EXTERNAL_STORAGE`, not `READ_EXTERNAL_STORAGE` — no root, no computer.
+
+With a machine attached, `adb` skips the copy by writing straight into the
+other directory that gets scanned:
 
 ```bash
 adb push gemma3-1b-it-int4.task \
   /sdcard/Android/data/ai.companion.pixel/files/models/
 ```
 
-That path needs no storage permission and no root; a file manager works just
-as well. The app finds anything dropped there on next launch. `filesDir/models`
-is checked too, for builds that want the model unreachable from outside.
+Both locations are searched on every launch, so neither route is privileged.
+
+### Why the import copies rather than referencing
+
+`LlmInference` opens a model by filesystem path and memory-maps it in native
+code; it cannot be handed a `content://` URI. Half a gigabyte therefore has to
+move, which is why the import reports progress, can be cancelled, checks free
+space first, and writes to `<name>.part` until the last byte lands.
+
+The check that matters most happens *before* any of that. The first 64 bytes
+are read off the stream and matched against the real signatures
+([`ModelValidator`](ModelValidator.kt)): `LITERTLM` at offset 0, a zip header
+within the first 16 bytes for `.task` (the published bundles carry four zero
+bytes before `PK\x03\x04`), `TFL3` at offset 4 for a bare flatbuffer. GGUF is
+recognised specifically so the refusal can say *"that's a llama.cpp model"*
+instead of failing four minutes and 500 MB later inside native graph
+construction, where the error names neither the file nor the reason.
 
 ### Where to get one
 
@@ -42,10 +66,10 @@ open models. Verified starting points:
 
 [hf]: https://huggingface.co/litert-community
 
-**GGUF does not work here.** This runtime reads its own bundle formats, and
-`ModelCatalog` deliberately refuses to list `.gguf` so that a wrong download
-fails as "no model found" at startup rather than as a native crash later. A
-llama.cpp engine would read GGUF, and that is still the fallback plan in
+**GGUF does not work here.** This runtime reads its own bundle formats.
+`ModelCatalog` refuses to list `.gguf`, and the importer refuses to copy one —
+by content, so renaming it to `.task` does not get it through. A llama.cpp
+engine would read GGUF, and that is still the fallback plan in
 `/LOCAL_AI_INVESTIGATION.md` if bundle availability ever becomes the
 constraint.
 
@@ -58,19 +82,30 @@ const AI_CONFIG = { provider: "device", … };
 ```
 
 On launch the app looks for a model, starts loading it in the background, and
-shows what it found in the status pill. With no model it says so — naming the
-directory to put one in — and runs on the offline brain, exactly as it does
-for a cloud provider with no key.
+shows what it found in the status pill. With no model it says so — pointing at
+⚙ → Local AI, which is the one place that can fix it — and runs on the offline
+brain, exactly as it does for a cloud provider with no key.
+
+The Local AI panel stays useful after that: it names the loaded model and its
+backend, replaces it, and deletes it. Deleting is restricted to files the app
+itself wrote, so a bug upstream cannot turn `removeModel` into a general
+delete. With two models present, whichever was chosen last wins over the
+catalog's "largest file" guess, and that choice survives a restart
+([`ModelStore`](ModelStore.kt)).
 
 ## How it fits together
 
 ```
 index.html  callProvider("device")  ──generate({system, messages})──┐
+            LocalAiUI               ──importModel() / removeModel()─┤
                                                                     │
 CompanionLocalLlmPlugin  ── Capacitor bridge, JSON in/out ──────────┤
                                                                     │
 MediaPipeLlmEngine       ── owns the native handle, one worker ─────┤
   ├── ModelCatalog       ── finds model files on disk                │
+  ├── ModelImporter      ── document picker → app storage            │
+  │   └── ModelValidator ── is this actually a model?                │
+  ├── ModelStore         ── remembers which one was chosen           │
   ├── ChatTemplate       ── formats turns for the model's family     │
   └── StructuredReply    ── pulls {response, emotion} back out ──────┘
 ```
@@ -129,8 +164,12 @@ JS side already treats an unavailable device provider as a normal state.
 
 `app/src/test/java/…/llm/` covers the parts that are pure logic and easy to
 get subtly wrong: template formatting per family, stop-marker trimming, the
-JSON extraction including its streaming-partial path, and the context-window
-hint. Run with `./gradlew :app:testDebugUnitTest`.
+JSON extraction including its streaming-partial path, the context-window hint,
+and the import's format sniffing and refusal messages. 45 tests; run with
+`./gradlew :app:testDebugUnitTest`.
 
 The engine itself is not unit-tested — it is a thin wrapper over a native
-handle, and testing it means running a real model on a real device.
+handle, and testing it means running a real model on a real device. Neither is
+the copy loop in `ModelImporter`, which needs a `ContentResolver`; what it
+delegates to (`ModelValidator`) is tested instead, since that is where the
+decisions are.

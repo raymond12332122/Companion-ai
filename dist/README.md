@@ -10,7 +10,7 @@ loop: download it from GitHub in the phone's browser and open it. There is no
 https://github.com/raymond12332122/Companion-ai/raw/refs/heads/claude/ai-companion-buddy-jvj4bq/dist/companion-ai-debug-arm64.apk
 ```
 
-SHA-256: `a0663e88874240a99609cf3fe0799df2bee752c33165f6ae816ed3702c826513`
+SHA-256: `cff3cf612b0c293563970295137263f4a3b1c22ac16b892dde96ad4d9e1526b6`
 
 Android will ask permission to install from whatever app opened the file
 (Chrome, or the file manager) — that prompt is expected for anything not from
@@ -32,17 +32,15 @@ needed.
 ## Then what
 
 The APK contains no model — see
-`android/app/src/main/java/ai/companion/pixel/llm/README.md`. Put a `.task` or
-`.litertlm` bundle in:
+`android/app/src/main/java/ai/companion/pixel/llm/README.md`. Download a
+`.task` or `.litertlm` bundle anywhere on the phone, then in the app:
 
-```
-/sdcard/Android/data/ai.companion.pixel/files/models/
-```
+> ⚙ (on the character's stage) → **Local AI** → **Import model**
 
-A file manager can do this; the path needs no permission and no root. Start
-with `gemma3-1b-it-int4.task` (529 MB) from
-[litert-community](https://huggingface.co/litert-community). With no model
-there the app says so in the status pill and runs on the offline brain.
+That opens the system file picker and copies the file into app storage. No
+permission, no root, no cable. Start with `gemma3-1b-it-int4.task` (529 MB)
+from [litert-community](https://huggingface.co/litert-community). With no
+model the app says so in the status pill and runs on the offline brain.
 
 ## Housekeeping
 
