@@ -11,7 +11,7 @@ loop: download it from GitHub in the phone's browser and open it. There is no
 https://github.com/raymond12332122/Companion-ai/raw/refs/heads/claude/ai-companion-buddy-jvj4bq/dist/companion-ai-debug.apk
 ```
 
-SHA-256: `6519cf016b849168d583354d34ce7d67a3c63a1d1382a546d89d499224ee4e39`
+SHA-256: `5a67ed0a327a63eefceb30f4710e18791d3818ea64c18fb18b8803cfe91fc4f6`
 
 Android will ask permission to install from whatever app opened the file
 (Chrome, or the file manager) — that prompt is expected for anything not from
@@ -52,6 +52,24 @@ Whichever engine actually answers depends on `AI_CONFIG.provider` in
 `index.html` — this build has it set to `"gemma"`, so the app runs on Local
 Gemma once a model is imported (`"device"` selects the original Local AI
 plugin instead, `"proxy"` the cloud backend).
+
+### Diagnostic chat commands (temporary)
+
+Two commands typed into the chat box, for testing without a computer:
+
+- `/gemma-minimal-test [text]` — bypasses personality, memory, history, and
+  every other companion system; sends exactly one message (default `"Hi"`)
+  with an empty system prompt straight to the plugin, capped at 60 output
+  tokens, and reports the exact input sent, token counts, raw output, and
+  timing.
+- `/gemma-diagnostics` — reports the imported model's filename, size,
+  SHA-256, on-device path, runtime version, backend (CPU/GPU), and
+  loaded/engine-initialized state. Never shows model contents.
+
+Every real reply (when `AI_CONFIG.provider` is `"gemma"`) also gets a debug
+block after it: active provider, model state, per-stage timing, exact raw
+model output, and main-thread frame timing by phase — see `GemmaDebug` in
+`index.html`.
 
 ## Housekeeping
 
