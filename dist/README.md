@@ -11,7 +11,7 @@ loop: download it from GitHub in the phone's browser and open it. There is no
 https://github.com/raymond12332122/Companion-ai/raw/refs/heads/claude/ai-companion-buddy-jvj4bq/dist/companion-ai-debug.apk
 ```
 
-SHA-256: `5a67ed0a327a63eefceb30f4710e18791d3818ea64c18fb18b8803cfe91fc4f6`
+SHA-256: `b5c916d1c37cfb8f0cc3f3fc3dc6e97102f967ef906fe2259bd550ca26ea52d6`
 
 Android will ask permission to install from whatever app opened the file
 (Chrome, or the file manager) — that prompt is expected for anything not from
@@ -55,7 +55,7 @@ plugin instead, `"proxy"` the cloud backend).
 
 ### Diagnostic chat commands (temporary)
 
-Two commands typed into the chat box, for testing without a computer:
+Three commands typed into the chat box, for testing without a computer:
 
 - `/gemma-minimal-test [text]` — bypasses personality, memory, history, and
   every other companion system; sends exactly one message (default `"Hi"`)
@@ -65,6 +65,17 @@ Two commands typed into the chat box, for testing without a computer:
 - `/gemma-diagnostics` — reports the imported model's filename, size,
   SHA-256, on-device path, runtime version, backend (CPU/GPU), and
   loaded/engine-initialized state. Never shows model contents.
+- `/gemma-controlled-test` — sends four fixed inputs ("Say the word APPLE.",
+  "Say the word BANANA.", "What is 2 + 2?", "Write one short sentence about
+  a spaceship.") as four independent, freshly-sessioned calls, and reports
+  each one's raw output, token counts, and timing alongside the full
+  sampling config (temperature/topK/topP/seed, history/system-included
+  flags). It automatically flags whether the four raw outputs are
+  suspiciously identical (points at prompt construction / session reuse on
+  the native side) versus genuinely differ but the UI shows the same reply
+  anyway (points at JS-side response handling), and separately warns if any
+  raw output contains a literal `User:`/`Assistant:` transcript-continuation
+  (points at the chat template/turn formatting, not personality).
 
 Every real reply (when `AI_CONFIG.provider` is `"gemma"`) also gets a debug
 block after it: active provider, model state, per-stage timing, exact raw
