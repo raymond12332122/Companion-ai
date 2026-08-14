@@ -4,3 +4,5 @@ node_modules/
 .DS_Store
 *.tar.gz
 test-results.json
+server/test-70b-results.json
+server/quality-test-results.json

@@ -102,34 +102,40 @@ model id from its catalogue.
 
 ### Model Selection (NVIDIA)
 
-The companion has access to two NVIDIA models. **See `MODEL_ANALYSIS.md` for detailed
-comparison.** Quality tested on 10 conversational scenarios: memory integration,
-emotional authenticity, character consistency, humor, and disagreement handling.
+The companion has access to two NVIDIA models. Both are configurable; choose based on your account's rate limits.
 
-| Model | Quality | Speed | Reliability | Notes |
+| Model | Quality | Speed | Reliability | Status |
 | --- | --- | --- | --- | --- |
-| `meta/llama-3.1-8b-instruct` | good | fast | 100% | Current; generic but reliable |
-| `meta/llama-3.1-70b-instruct` | **excellent** | slower | 70% | **Recommended**; much better character depth |
+| `meta/llama-3.1-8b-instruct` | good | 1.2s avg | 100% | **DEFAULT** — production-ready |
+| `meta/llama-3.1-70b-instruct` | excellent | 10s avg | 25% | experimental — rate-limited on most accounts |
 
-**Recommendation:** Upgrade to `meta/llama-3.1-70b-instruct` for noticeably better conversation quality.
-The 70B model produces richer emotional expressions, better memory integration, more natural teasing,
-and stronger personality. Set in `.env`:
+**Current Default:** `meta/llama-3.1-8b-instruct`  
+The 8B model is reliable and produces solid character responses. Use this unless you have confirmed
+access to the 70B model on your NVIDIA account tier.
 
+**About the 70B Model:**  
+The 70B model produces noticeably better character depth, emotional nuance, and memory integration —
+when it's available. However, test results show it times out on ~75% of requests due to NVIDIA account
+rate-limiting. See `70B_TESTING_RESULTS.md` for detailed reliability data.
+
+**To test 70B (development only):**
 ```bash
-COMPANION_MODEL=meta/llama-3.1-70b-instruct
+COMPANION_MODEL=meta/llama-3.1-70b-instruct node server/proxy.js
 ```
 
-If the 70B model experiences timeouts, the app falls back gracefully to the offline brain. Check
-your NVIDIA account at [build.nvidia.com](https://build.nvidia.com) to verify the 70B model is
-available for your API key's tier.
-
-**Testing models:** Run `node server/test-models.js` to compare the two models on the test suite:
+**Reliability Testing:**  
+Run the test suite to compare models on your account:
 
 ```bash
-COMPANION_API_KEY=$(grep COMPANION_API_KEY .env | cut -d= -f2) node server/test-models.js
+COMPANION_API_KEY=$(grep COMPANION_API_KEY .env | cut -d= -f2) node server/test-70b.js
 ```
 
-Results are saved to `server/test-results.json` for review.
+Results saved to `server/test-70b-results.json`. If your 70B success rate is ≥95%, consider
+upgrading. Otherwise, stay on 8B.
+
+**When 70B Becomes Available:**  
+If you upgrade your NVIDIA account tier or contact support about 70B access, re-run `test-70b.js`
+to verify reliability before switching the default.
 
 ### Backend endpoints
 
