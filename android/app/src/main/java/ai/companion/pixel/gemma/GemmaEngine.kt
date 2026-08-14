@@ -22,7 +22,8 @@ data class GemmaAvailability(
     val reason: String?,
     val modelId: String?,
     val sizeBytes: Long,
-    val backend: String?
+    val backend: String?,
+    val modelPath: String? = null // TEMP DEBUG
 )
 
 data class GemmaLoadOutcome(val loaded: Boolean, val backend: String?, val error: String?, val loadMillis: Long)
@@ -38,7 +39,8 @@ data class GemmaTiming(
     val promptPrepMs: Long,
     val inferenceMs: Long,
     val responseProcessingMs: Long,
-    val rawOutput: String
+    val rawOutput: String,
+    val inferenceThread: String
 )
 
 /**
@@ -84,11 +86,12 @@ class GemmaEngine {
                 reason = null,
                 modelId = GemmaModelStore.displayName(context) ?: "gemma-model.task",
                 sizeBytes = file.length(),
-                backend = loadedBackend
+                backend = loadedBackend,
+                modelPath = loadedPath
             )
         }
         if (!file.isFile) {
-            return GemmaAvailability(false, false, "no_model_imported", null, 0L, null)
+            return GemmaAvailability(false, false, "no_model_imported", null, 0L, null, null)
         }
         return GemmaAvailability(
             available = true,
@@ -96,7 +99,8 @@ class GemmaEngine {
             reason = "not_loaded",
             modelId = GemmaModelStore.displayName(context) ?: "gemma-model.task",
             sizeBytes = file.length(),
-            backend = null
+            backend = null,
+            modelPath = file.absolutePath
         )
     }
 
@@ -239,7 +243,10 @@ class GemmaEngine {
             val parsed = GemmaReply.extract(trimmed)
             val responseProcessingMs = System.currentTimeMillis() - processingStart // TEMP DEBUG
 
-            val timing = GemmaTiming(modelLoadMs, promptPrepMs, inferenceMs, responseProcessingMs, raw) // TEMP DEBUG
+            val timing = GemmaTiming(
+                modelLoadMs, promptPrepMs, inferenceMs, responseProcessingMs, raw,
+                inferenceThread = Thread.currentThread().name
+            ) // TEMP DEBUG
             if (parsed.response.isBlank()) {
                 callback.onError("The model returned an empty reply", "empty_reply")
             } else {

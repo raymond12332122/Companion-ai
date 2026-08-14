@@ -1638,6 +1638,69 @@ const GemmaStream = {
 };
 
 /**
+ * TEMP DEBUG — flip to false to restore normal fallback-to-offline-brain
+ * behavior on a Gemma failure. While true, a failed gemma request shows its
+ * real error in the chat instead of a friendly "offline brain" answer, and
+ * never parks state.transport on "local" — every message gets a fresh,
+ * real attempt at native inference. Only affects the "gemma" provider;
+ * proxy/anthropic/openai/device/local are untouched either way.
+ */
+const GEMMA_DIAGNOSTIC_MODE = true;
+
+/**
+ * TEMP DEBUG — samples requestAnimationFrame deltas continuously and tags
+ * each frame with which stage of a message's lifecycle was active when it
+ * fired, so a lag report can say WHICH stage the frames were slow in
+ * instead of just "it was slow". Runs for the whole app lifetime at
+ * negligible cost (one rAF callback, a push, a subtraction); only its
+ * summary — read once per message via pushGemmaDebugMessage() — does
+ * anything with the samples.
+ */
+const FpsProbe = {
+  phase: "idle",
+  samples: [],
+  lastFrame: null,
+  setPhase: function (phase) { this.phase = phase; },
+  clear: function () { this.samples = []; },
+  start: function () {
+    if (this.started) return;
+    this.started = true;
+    const self = this;
+    function tick(ts) {
+      if (self.lastFrame !== null) {
+        self.samples.push({ phase: self.phase, deltaMs: ts - self.lastFrame });
+        // Cap so a long session can't grow this unboundedly; only the most
+        // recent message's phases matter for this diagnostic.
+        if (self.samples.length > 2000) self.samples.splice(0, self.samples.length - 2000);
+      }
+      self.lastFrame = ts;
+      window.requestAnimationFrame(tick);
+    }
+    window.requestAnimationFrame(tick);
+  },
+  summary: function () {
+    const byPhase = {};
+    this.samples.forEach(function (s) {
+      (byPhase[s.phase] || (byPhase[s.phase] = [])).push(s.deltaMs);
+    });
+    const order = ["A-prep", "B-inference", "D-processing"];
+    const lines = [];
+    order.concat(Object.keys(byPhase).filter(function (p) { return order.indexOf(p) === -1; }))
+      .forEach(function (phase) {
+        const arr = byPhase[phase];
+        if (!arr || !arr.length) return;
+        const avg = arr.reduce(function (a, b) { return a + b; }, 0) / arr.length;
+        const worst = Math.max.apply(null, arr);
+        const fps = avg > 0 ? (1000 / avg).toFixed(1) : "?";
+        lines.push("  " + phase + ": " + arr.length + " frames, avg " + avg.toFixed(1) +
+          "ms/frame (~" + fps + " fps), worst frame " + worst.toFixed(1) + "ms");
+      });
+    return lines.length ? lines.join("\n") : "  (no frames sampled)";
+  }
+};
+FpsProbe.start();
+
+/**
  * TEMP DEBUG — remove once Gemma inference is confirmed reaching the model
  * end to end. Answers one question: for the message that was just sent, did
  * it actually go USER -> gemma provider -> native plugin -> model -> reply,
@@ -1650,6 +1713,10 @@ const GemmaDebug = {
   reset: function () {
     this.provider = AI_CONFIG.provider;
     this.modelLoaded = null;
+    this.modelPath = null;
+    this.modelSizeBytes = null;
+    this.engineInitialized = null;  // same underlying flag as modelLoaded in this architecture — see summary()
+    this.inferenceThread = null;
     this.inferenceStarted = false;
     this.inferenceCompleted = false;
     this.fallbackTriggered = false;
@@ -1665,18 +1732,27 @@ const GemmaDebug = {
     this.inferenceMs = null;
     this.responseProcessingMs = null;
     this.nativeToJsMs = null;
+    FpsProbe.clear(); // TEMP DEBUG — fresh frame samples for this message only
   },
   summary: function () {
     const yn = function (v) { return v === null ? "?" : (v ? "YES" : "NO"); };
     const ms = function (v) { return v === null || v === undefined ? "?" : v + " ms"; };
     const lines = [
       "[Gemma debug] active provider: " + this.provider,
-      "Gemma model loaded: " + yn(this.modelLoaded),
-      "Gemma inference started: " + yn(this.inferenceStarted),
-      "Gemma inference completed: " + yn(this.inferenceCompleted),
-      "Fallback triggered: " + yn(this.fallbackTriggered)
+      "Model loaded: " + yn(this.modelLoaded),
+      "Model path: " + (this.modelPath || "?"),
+      "Model size: " + (this.modelSizeBytes ? (this.modelSizeBytes / 1048576).toFixed(1) + " MB" : "?"),
+      // Same boolean as "Model loaded" in this architecture: LlmInference is
+      // constructed and the model file is memory-mapped in one native call
+      // (LlmInference.createFromOptions), so "engine initialized" and
+      // "model loaded" are the same event here, not two separate steps.
+      "Inference engine initialized: " + yn(this.engineInitialized) + " (same event as model load in this build)",
+      "Inference thread: " + (this.inferenceThread || "?"),
+      "Native inference started: " + yn(this.inferenceStarted),
+      "Native inference completed: " + yn(this.inferenceCompleted),
+      "Fallback used: " + yn(this.fallbackTriggered)
     ];
-    if (this.fallbackTriggered) lines.push("Fallback reason: " + (this.fallbackReason || "(none recorded)"));
+    if (this.fallbackTriggered) lines.push("Fallback/failure reason: " + (this.fallbackReason || "(none recorded)"));
     lines.push("Total message latency: " + ms(this.durationMs));
     if (this.inferenceCompleted) {
       lines.push(
@@ -1688,6 +1764,8 @@ const GemmaDebug = {
       );
       lines.push("Raw native output: " + (this.rawOutput === null ? "?" : JSON.stringify(this.rawOutput)));
     }
+    lines.push("Main-thread frame timing by phase (A=before native call, B=native inference in flight, D=JS response processing):");
+    lines.push(FpsProbe.summary());
     return lines.join("\n");
   }
 };
@@ -4068,6 +4146,9 @@ async function callProvider(userText, options) {
     }
     const gemmaAvailable = await checkGemmaAvailable();
     GemmaDebug.modelLoaded = Boolean(gemmaStatus && gemmaStatus.loaded); // TEMP DEBUG
+    GemmaDebug.modelPath = gemmaStatus && gemmaStatus.modelPath; // TEMP DEBUG
+    GemmaDebug.modelSizeBytes = gemmaStatus && gemmaStatus.sizeBytes; // TEMP DEBUG
+    GemmaDebug.engineInitialized = Boolean(gemmaStatus && gemmaStatus.engineInitialized); // TEMP DEBUG
     if (!gemmaAvailable) {
       GemmaDebug.fallbackReason = "config: no Gemma model imported — " + (gemmaStatus && gemmaStatus.reason); // TEMP DEBUG
       throw AiError("config", "No Gemma model imported yet — see ⚙ → Local Gemma");
@@ -4092,6 +4173,7 @@ async function callProvider(userText, options) {
 
     const gemmaStarted = Date.now(); // TEMP DEBUG
     GemmaDebug.inferenceStarted = true; // TEMP DEBUG
+    FpsProbe.setPhase("B-inference"); // TEMP DEBUG
     let gemmaResult;
     try {
       gemmaResult = await Promise.race([
@@ -4112,6 +4194,10 @@ async function callProvider(userText, options) {
         GemmaDebug.inferenceMs = gemmaResult.inferenceMs;
         GemmaDebug.responseProcessingMs = gemmaResult.responseProcessingMs;
         GemmaDebug.rawOutput = gemmaResult.rawOutput;
+        GemmaDebug.inferenceThread = gemmaResult.inferenceThread;
+        if (typeof gemmaResult.engineInitialized === "boolean") {
+          GemmaDebug.engineInitialized = gemmaResult.engineInitialized;
+        }
         if (typeof gemmaResult.nativeCompletedAtMs === "number") {
           GemmaDebug.nativeToJsMs = Date.now() - gemmaResult.nativeCompletedAtMs;
         }
@@ -4666,13 +4752,21 @@ async function askCompanion(userText, relationshipEventKinds, options) {
   }
 
   GemmaDebug.reset(); // TEMP DEBUG
+  if (AI_CONFIG.provider === "gemma") FpsProbe.setPhase("A-prep"); // TEMP DEBUG
 
   const started = Date.now();
   let reply = null;
   let failure = null;
 
+  // TEMP DEBUG — diagnostic mode forces every message through callProvider()
+  // for a fresh, real attempt, even if a transport gate parked things on
+  // "local" before the fix above existed (this session, an earlier message,
+  // or detectBackend() at launch). Otherwise this line alone can make every
+  // message after the first quietly skip Gemma for the rest of the session.
+  const gemmaDiagnosticForceAttempt = AI_CONFIG.provider === "gemma" && GEMMA_DIAGNOSTIC_MODE;
+
   try {
-    if (AI_CONFIG.provider === "local" || state.transport === "local") {
+    if ((AI_CONFIG.provider === "local" || state.transport === "local") && !gemmaDiagnosticForceAttempt) {
       // TEMP DEBUG: provider is "gemma" but transport already fell back
       // before this message was even sent — detectBackend() or a prior
       // failed load parked it on "local", so callProvider() is never
@@ -4686,6 +4780,7 @@ async function askCompanion(userText, relationshipEventKinds, options) {
       reply = localBrain(userText);
     } else {
       const raw = await callProvider(userText);
+      if (AI_CONFIG.provider === "gemma") FpsProbe.setPhase("D-processing"); // TEMP DEBUG
       if (!raw || !String(raw).trim()) throw AiError("empty", "Empty response");
       reply = parseReply(raw);
       // A completion that was nothing but a mood tag parses down to no words at
@@ -4713,6 +4808,25 @@ async function askCompanion(userText, relationshipEventKinds, options) {
     // Technical detail goes to the console, not the transcript: upstream error
     // text is backend information and has no meaning to the person chatting.
     console.warn("[companion] provider request failed:", failure.kind, failure.message);
+
+    // TEMP DEBUG — diagnostic mode. A friendly fallback message is exactly
+    // what makes a real failure indistinguishable from "Gemma answered
+    // badly", which is the thing we're trying to rule out. While
+    // GEMMA_DIAGNOSTIC_MODE is on, a gemma failure shows the *actual* error
+    // instead of the offline brain, and does not park state.transport on
+    // "local" — every message gets a fresh, real attempt at native
+    // inference instead of silently reusing the offline brain from here on.
+    if (AI_CONFIG.provider === "gemma" && GEMMA_DIAGNOSTIC_MODE) {
+      sprites.set("sad");
+      pushMessage("bot", "[DIAGNOSTIC MODE — fallback suppressed] " + failure.kind + ": " + failure.message,
+        { error: true, retryText: userText, mood: "sad" });
+      setStatus("error", "Gemma failed (diagnostic mode — see message above)");
+      pushGemmaDebugMessage();
+      FpsProbe.setPhase("idle"); // TEMP DEBUG
+      setBusy(false);
+      return;
+    }
+
     if (AI_CONFIG.fallbackToLocal) {
       const backup = localBrain(userText);
       pushMessage("system", friendly + " I answered from my offline brain instead.", { retryText: userText });
@@ -4725,6 +4839,7 @@ async function askCompanion(userText, relationshipEventKinds, options) {
       pushMessage("bot", friendly, { error: true, retryText: userText, mood: "sad" });
     }
     pushGemmaDebugMessage(); // TEMP DEBUG
+    FpsProbe.setPhase("idle"); // TEMP DEBUG
     setBusy(false);
     return;
   }
@@ -4733,6 +4848,7 @@ async function askCompanion(userText, relationshipEventKinds, options) {
   sprites.set(committed);
   pushMessage("bot", reply.text, { mood: reply.mood });
   pushGemmaDebugMessage(); // TEMP DEBUG
+  FpsProbe.setPhase("idle"); // TEMP DEBUG
   setBusy(false);
   // Movement to match the expression the emotion system just settled on, then
   // a drift back toward idle. The expression itself is not decided here.

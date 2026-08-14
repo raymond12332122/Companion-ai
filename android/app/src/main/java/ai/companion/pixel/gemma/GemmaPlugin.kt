@@ -72,6 +72,12 @@ class GemmaPlugin : Plugin() {
         result.put("modelId", status.modelId)
         result.put("sizeBytes", status.sizeBytes)
         result.put("backend", status.backend)
+        result.put("modelPath", status.modelPath) // TEMP DEBUG
+        // TEMP DEBUG — same event as "loaded" in this architecture: the model
+        // file is memory-mapped and LlmInference constructed in one native
+        // call (LlmInference.createFromOptions), so there is no separate
+        // "engine initialized but model not loaded" state to report here.
+        result.put("engineInitialized", status.loaded)
         call.resolve(result)
     }
 
@@ -296,6 +302,8 @@ class GemmaPlugin : Plugin() {
                     put("inferenceMs", timing.inferenceMs)
                     put("responseProcessingMs", timing.responseProcessingMs)
                     put("rawOutput", timing.rawOutput.take(4000))
+                    put("inferenceThread", timing.inferenceThread)
+                    put("engineInitialized", true)
                     put("nativeCompletedAtMs", System.currentTimeMillis())
                 })
             }
