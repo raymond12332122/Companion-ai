@@ -188,7 +188,7 @@
   .stage {
     position: relative;
     flex: none;
-    height: clamp(170px, 27dvh, 280px);
+    height: clamp(210px, 34dvh, 340px);
     overflow: hidden;
     border-bottom: 1px solid var(--line);
     background:
@@ -204,18 +204,30 @@
     background: radial-gradient(ellipse at center, rgba(0, 0, 0, .5), transparent 72%);
     pointer-events: none;
   }
+  /* The actor is sized by HEIGHT and takes its width from the artwork's own
+   * aspect ratio, so a tall character is not letterboxed inside a square and
+   * "size" means the same thing whatever shape the sprite is. `--wander` is
+   * the drift offset the Stage module animates; keeping it in a custom
+   * property means placement (left/top), drift (this transform) and the mood
+   * animation (on .sprite) never overwrite each other. */
   .stage__actor {
     position: absolute;
     left: 50%; top: 54%;
-    width: 150px;
+    height: 150px;
     aspect-ratio: 1 / 1;
-    transform: translate(-50%, -50%);
+    --wander-x: 0px;
+    --wander-y: 0px;
+    transform: translate(-50%, -50%) translate(var(--wander-x), var(--wander-y));
+    transition: transform 2.6s cubic-bezier(.37, 0, .35, 1);
     cursor: grab;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
   }
-  .stage__actor.is-dragging { cursor: grabbing; }
+  .stage__actor.is-dragging {
+    cursor: grabbing;
+    transition: none;                  /* follow the finger exactly */
+  }
   .stage__actor.is-dragging .sprite { animation-play-state: paused; }
 
   .sprite {
@@ -225,14 +237,28 @@
     animation: bob 4.5s ease-in-out infinite;
     pointer-events: none;              /* the actor owns the pointer, not the art */
   }
+  /* A third layer purely for the little one-off gestures, so a hop can play
+   * over the top of whatever the mood animation is already doing. */
+  .sprite__body {
+    position: relative;
+    width: 100%; height: 100%;
+    transform-origin: 50% 92%;
+  }
   .sprite__img {
+    position: absolute; inset: 0;
     display: block;
     width: 100%; height: 100%;
     object-fit: contain;
     object-position: center bottom;
     -webkit-user-drag: none;
+    opacity: 1;
+    transition: opacity .22s ease;
   }
+  .sprite__img[hidden] { display: none; }
+  .sprite__img--incoming { opacity: 0; }
   .sprite__fallback {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
     display: grid; place-items: center;
     width: 74%; height: 74%;
     border-radius: 26px;
@@ -240,6 +266,46 @@
     color: #0e1020;
     background: linear-gradient(140deg, #9fb6ff, #d4c2ff);
     animation: pulse-fallback 2s ease-in-out infinite;
+  }
+
+  /* Idle gestures. Short, occasional, and deliberately small — the character
+   * should read as alive, not as a looping animation. */
+  .sprite__body[data-gesture="hop"]     { animation: ges-hop .62s cubic-bezier(.3, 1.4, .5, 1); }
+  .sprite__body[data-gesture="lean"]    { animation: ges-lean 1.5s ease-in-out; }
+  .sprite__body[data-gesture="look"]    { animation: ges-look 2s ease-in-out; }
+  .sprite__body[data-gesture="wiggle"]  { animation: ges-wiggle .9s ease-in-out; }
+  .sprite__body[data-gesture="stretch"] { animation: ges-stretch 1.6s ease-in-out; }
+  .sprite__body[data-gesture="perk"]    { animation: ges-perk .7s cubic-bezier(.3, 1.5, .5, 1); }
+
+  @keyframes ges-hop {
+    0%, 100% { transform: translateY(0) scaleY(1); }
+    18%      { transform: translateY(0) scaleY(.9) scaleX(1.06); }
+    50%      { transform: translateY(-16%) scaleY(1.06) scaleX(.96); }
+    78%      { transform: translateY(0) scaleY(.94) scaleX(1.04); }
+  }
+  @keyframes ges-lean {
+    0%, 100% { transform: rotate(0); }
+    35%, 65% { transform: rotate(-5deg); }
+  }
+  @keyframes ges-look {
+    0%, 100% { transform: rotate(0) translateX(0); }
+    25%      { transform: rotate(3deg) translateX(2%); }
+    60%      { transform: rotate(-3deg) translateX(-2%); }
+  }
+  @keyframes ges-wiggle {
+    0%, 100% { transform: rotate(0); }
+    20%      { transform: rotate(4deg); }
+    45%      { transform: rotate(-4deg); }
+    70%      { transform: rotate(2deg); }
+  }
+  @keyframes ges-stretch {
+    0%, 100% { transform: scaleY(1) translateY(0); }
+    40%      { transform: scaleY(1.07) translateY(-4%); }
+    70%      { transform: scaleY(.97) translateY(0); }
+  }
+  @keyframes ges-perk {
+    0%, 100% { transform: translateY(0) scale(1); }
+    40%      { transform: translateY(-9%) scale(1.05); }
   }
 
   /* Glow via drop-shadow, not box-shadow: it follows the artwork's alpha, so a
@@ -365,6 +431,8 @@
   .chat {
     flex: 1;
     min-height: 220px;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18px);
+    mask-image: linear-gradient(180deg, transparent 0, #000 18px);
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 16px;
@@ -533,10 +601,28 @@
       height: calc(100dvh - var(--header-h, 96px) - 24px);
       max-height: none;
     }
-    .stage { height: clamp(150px, 26dvh, 240px); }
+    /* The scene gets the largest single share of the screen — it is the point
+     * of the app — while the conversation keeps enough room to read. */
+    .stage { height: clamp(200px, 34dvh, 300px); }
     .chat { flex: 1; min-height: 0; max-height: none; }
     .msg__bubble { max-width: 88%; }
+    /* One line, not three: every row here is a row the scene loses. */
+    .hints {
+      padding: 0 14px 8px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
   }
+
+  /* The on-screen keyboard shrinks the visual viewport without changing the
+   * layout viewport, so dvh stays at its full value and the composer ends up
+   * underneath the keyboard. --vvh is published from visualViewport and the
+   * scene yields its height so the conversation and the input stay reachable. */
+  @media (max-width: 900px) {
+    .companion { height: calc(var(--vvh, 100dvh) - var(--header-h, 96px) - 24px); }
+  }
+  .is-keyboard .stage { height: clamp(96px, 14dvh, 140px); }
+  .is-keyboard .stage__panel { display: none; }
+  .is-keyboard .hints { display: none; }
 
   @media (max-width: 520px) {
     /* Every row the header spends is a row the conversation loses. */
@@ -839,7 +925,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .msg, .sprite, .typing__dot, .preview__sprite { animation: none !important; }
+    .msg, .sprite, .typing__dot, .preview__sprite, .sprite__body { animation: none !important; }
+    .stage__actor { transition: none !important; }
     .chip, .send-btn { transition: none; }
   }
 </style>
@@ -922,8 +1009,14 @@
       <div class="stage__floor" aria-hidden="true"></div>
       <div class="stage__actor" id="stage-actor" title="Drag to move">
         <div class="sprite" id="sprite" data-mood="neutral">
-          <img class="sprite__img" id="sprite-img" alt="" hidden>
-          <div class="sprite__fallback" id="sprite-fallback" aria-hidden="true">^‿^</div>
+          <div class="sprite__body" id="sprite-body">
+            <!-- Two layers so an expression change can cross-fade instead of
+                 popping, and so a sprite that fails to load never blanks the
+                 character: the incoming layer is the one that can fail. -->
+            <img class="sprite__img" id="sprite-img" alt="" aria-hidden="true">
+            <img class="sprite__img sprite__img--incoming" id="sprite-img-next" alt="" aria-hidden="true">
+            <div class="sprite__fallback" id="sprite-fallback" aria-hidden="true">^‿^</div>
+          </div>
         </div>
       </div>
 
@@ -934,7 +1027,7 @@
           <h3 class="stage__grouphead">Appearance</h3>
           <label for="stage-size">
             Character size
-            <input type="range" id="stage-size" min="45" max="160" step="1" value="92">
+            <input type="range" id="stage-size" min="30" max="110" step="1" value="72">
           </label>
           <button class="stage__reset" id="stage-reset" type="button">Reset position &amp; size</button>
           <p class="stage__hint">Drag the character to move it around the stage.</p>
@@ -1302,6 +1395,13 @@ const Profile = (function () {
       dislikes: cleanTagList(raw.dislikes),
       inspiration: String(raw.inspiration == null ? "" : raw.inspiration).replace(/\s+/g, " ").trim().slice(0, 160),
       customExpressions: customExpressions,
+      // How this character is sized and where it stands. Kept on the profile
+      // so two characters can have different presences on the same device.
+      stage: (raw.stage && typeof raw.stage === "object") ? {
+        scale: typeof raw.stage.scale === "number" ? raw.stage.scale : null,
+        x: typeof raw.stage.x === "number" ? raw.stage.x : null,
+        y: typeof raw.stage.y === "number" ? raw.stage.y : null
+      } : null,
       createdAt: typeof raw.createdAt === "number" ? raw.createdAt : Date.now(),
       updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : Date.now()
     };
@@ -2233,6 +2333,8 @@ const dom = {
   stagePanel: document.getElementById("stage-panel"),
   stageSize: document.getElementById("stage-size"),
   stageReset: document.getElementById("stage-reset"),
+  spriteImgNext: document.getElementById("sprite-img-next"),
+  spriteBody: document.getElementById("sprite-body"),
   evMaster: document.getElementById("ev-master"),
   evList: document.getElementById("ev-list"),
   evAi: document.getElementById("ev-ai"),
@@ -2407,24 +2509,61 @@ const sprites = (function () {
   let pending = null;
   let attemptChain = [];
 
+  // Two image layers. `front` is what the user is looking at; candidates are
+  // always loaded into `back`, so a source that 404s or fails to decode can
+  // never blank the character — the current expression simply stays up while
+  // the chain is walked, and the swap happens only on a confirmed success.
+  let front = dom.spriteImg;
+  let back = dom.spriteImgNext;
+  let aspect = 1;
+
+  function faceFor(mood) { return COMPANION.faces[mood] || COMPANION.faces.neutral; }
+
   function showFallback(mood) {
-    dom.spriteImg.hidden = true;
+    front.hidden = true;
+    back.hidden = true;
     dom.spriteFallback.hidden = false;
-    dom.spriteFallback.textContent = COMPANION.faces[mood] || COMPANION.faces.neutral;
+    dom.spriteFallback.textContent = faceFor(mood);
+    setAspect(1);
   }
 
-  function showImage() {
+  /**
+   * The actor's box takes the artwork's own proportions, so a tall character
+   * isn't letterboxed inside a square and "size" means the same thing for
+   * every sprite. Stage re-derives its pixel size from this.
+   */
+  function setAspect(ratio) {
+    if (!ratio || !isFinite(ratio) || ratio <= 0) ratio = 1;
+    if (Math.abs(ratio - aspect) < 0.01) return;
+    aspect = ratio;
+    dom.stageActor.style.aspectRatio = String(ratio);
+    if (window.Stage && Stage.apply) Stage.apply();
+  }
+
+  /** Promote the freshly loaded layer and cross-fade the old one out. */
+  function commit() {
     dom.spriteFallback.hidden = true;
-    dom.spriteImg.hidden = false;
+    back.hidden = false;
+    setAspect(back.naturalWidth / back.naturalHeight);
+
+    // Force a frame so the transition has a starting opacity to animate from.
+    void back.offsetWidth;
+    back.classList.remove("sprite__img--incoming");
+    front.classList.add("sprite__img--incoming");
+
+    const previous = front;
+    front = back;
+    back = previous;
+    pending = null;
   }
 
   function tryLoad(candidate) {
     pending = candidate.key;
-    if (dom.spriteImg.getAttribute("src") !== candidate.url) {
-      dom.spriteImg.setAttribute("src", candidate.url);
-    } else if (dom.spriteImg.complete && dom.spriteImg.naturalWidth > 0) {
-      showImage();
+    if (back.getAttribute("src") === candidate.url && back.complete && back.naturalWidth > 0) {
+      commit();
+      return;
     }
+    back.setAttribute("src", candidate.url);
   }
 
   // Walks the closest-available-expression chain for whatever mood is
@@ -2439,23 +2578,34 @@ const sprites = (function () {
       tryLoad(candidate);
       return;
     }
+    // Nothing loadable. Keep a good image if one is already showing rather
+    // than replacing a real character with a text face.
+    if (front.getAttribute("src") && front.naturalWidth > 0) {
+      pending = null;
+      return;
+    }
     showFallback(state.mood);
   }
 
-  // The <img> starts hidden and the drawn fallback face is visible, so a missing
-  // file can never flash an empty rectangle or a broken-image icon.
-  dom.spriteImg.addEventListener("load", function () {
-    if (dom.spriteImg.naturalWidth === 0) {
-      if (pending) broken[pending] = true;
+  function onLoad() {
+    if (!pending) return;
+    if (back.naturalWidth === 0) {
+      broken[pending] = true;
       attemptNext();
       return;
     }
-    showImage();
-  });
+    commit();
+  }
 
-  dom.spriteImg.addEventListener("error", function () {
+  function onError() {
     if (pending) broken[pending] = true;
     attemptNext();
+  }
+
+  // Bound to both elements because the two swap roles on every change.
+  [dom.spriteImg, dom.spriteImgNext].forEach(function (img) {
+    img.addEventListener("load", function () { if (img === back) onLoad(); });
+    img.addEventListener("error", function () { if (img === back) onError(); });
   });
 
   function react() {
@@ -2469,8 +2619,8 @@ const sprites = (function () {
     dom.sprite.dataset.mood = BASE_EXPRESSIONS.indexOf(mood) !== -1 ? mood : "neutral";
     dom.moodLabel.textContent = mood.replace(/_/g, " ");
     dom.statMood.textContent = mood.replace(/_/g, " ");
-    dom.spriteImg.alt = COMPANION.name + " looking " + mood.replace(/_/g, " ");
-    dom.spriteFallback.textContent = COMPANION.faces[mood] || COMPANION.faces.neutral;
+    front.alt = COMPANION.name + " looking " + mood.replace(/_/g, " ");
+    dom.spriteFallback.textContent = faceFor(mood);
 
     attemptChain = spriteCandidates(mood);
     attemptNext();
@@ -2482,12 +2632,20 @@ const sprites = (function () {
     /** Uploaded artwork changed — retry every source and redraw. */
     refresh: function () {
       broken = Object.create(null);
-      dom.spriteImg.removeAttribute("src");
-      dom.spriteImg.hidden = true;
+      [dom.spriteImg, dom.spriteImgNext].forEach(function (img) {
+        img.removeAttribute("src");
+        img.hidden = true;
+        img.classList.add("sprite__img--incoming");
+      });
+      front = dom.spriteImg;
+      back = dom.spriteImgNext;
       dom.spriteFallback.hidden = false;
       set(state.mood);
     },
     isBroken: function (key) { return Boolean(broken[key]); },
+    aspect: function () { return aspect; },
+    /** The layer currently visible — the one tests should read src/alt from. */
+    visible: function () { return front; },
     chainFor: expressionChain,
     candidatesFor: spriteCandidates
   };
@@ -2499,42 +2657,86 @@ const sprites = (function () {
  * (that's the sprite loader above) or how the character feels — so a user
  * dragging their companion around can't perturb mood, memory, or relationship.
  *
- * Geometry choices, both deliberate:
- *   - position is stored as a percentage of the stage, so it survives a
- *     rotation or window resize instead of drifting off-screen;
- *   - size is stored as a multiple of stage *height*, so the character keeps
- *     its apparent size when the panel gets wider on desktop.
- * Placement is written to left/top/width, never `transform`, because the mood
- * animations own `transform` on the inner .sprite element.
+ * Geometry choices, all deliberate:
+ *   - the anchor is stored as a percentage of the stage, so it survives a
+ *     rotation or resize instead of drifting off-screen;
+ *   - size is a fraction of stage *height*, and the actor takes the artwork's
+ *     own aspect ratio, so "size" means the same thing for a tall character
+ *     and a wide one;
+ *   - the anchor is where the user put the character; wandering is a drift
+ *     *around* that anchor, so the companion feels alive without ever
+ *     abandoning the spot its owner chose.
+ *
+ * Three transforms, three owners, no collisions: the actor's `left/top` is the
+ * anchor, the actor's `--wander-*` custom properties are the drift, and the
+ * inner .sprite keeps `transform` for the mood animation.
  * ========================================================================= */
-const STAGE_KEY = "companion.stage.v1";
-const STAGE_MIN_SCALE = 0.45;
-const STAGE_MAX_SCALE = 1.6;
-const STAGE_DEFAULTS = { scale: 0.92, x: 50, y: 54 };
+const STAGE_KEY = "companion.stage.v1";      // legacy global key, migrated on load
+const STAGE_MIN_SCALE = 0.3;
+const STAGE_MAX_SCALE = 1.1;
+// Chibi proportions: present and unmistakably there, but leaving most of the
+// stage empty so there is somewhere to wander to.
+const STAGE_DEFAULTS = { scale: 0.72, x: 50, y: 56 };
+
+const STAGE_WANDER = {
+  minDelayMs: 5200,
+  maxDelayMs: 13000,
+  horizontalBias: 0.42,   // fraction of the free horizontal space it may drift
+  verticalBias: 0.1
+};
+
+const STAGE_GESTURES = ["hop", "lean", "look", "wiggle", "stretch", "perk"];
+const STAGE_GESTURE_DELAY = { minMs: 6000, maxMs: 17000 };
 
 const Stage = (function () {
   let cfg = { scale: STAGE_DEFAULTS.scale, x: STAGE_DEFAULTS.x, y: STAGE_DEFAULTS.y };
   let pointerId = null;
   let grabOffset = { x: 0, y: 0 };
   let dragDistance = 0;
+  let wanderTimer = null;
+  let gestureTimer = null;
+  let gestureClearTimer = null;
 
   function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+  function between(lo, hi) { return lo + Math.random() * (hi - lo); }
 
+  function sanitise(saved) {
+    const out = {};
+    if (!saved || typeof saved !== "object") return null;
+    out.scale = typeof saved.scale === "number" && isFinite(saved.scale)
+      ? clamp(saved.scale, STAGE_MIN_SCALE, STAGE_MAX_SCALE) : STAGE_DEFAULTS.scale;
+    out.x = typeof saved.x === "number" && isFinite(saved.x) ? clamp(saved.x, 0, 100) : STAGE_DEFAULTS.x;
+    out.y = typeof saved.y === "number" && isFinite(saved.y) ? clamp(saved.y, 0, 100) : STAGE_DEFAULTS.y;
+    return out;
+  }
+
+  /**
+   * Geometry belongs to the character, not the browser: two characters can
+   * reasonably want different sizes and standing spots. Older installs kept it
+   * under one global key, so that value is adopted once and then followed by
+   * the profile from then on.
+   */
   function load() {
+    const fromProfile = sanitise(Profile.get().stage);
+    if (fromProfile) { cfg = fromProfile; return; }
+
     let raw = null;
     try { raw = window.localStorage.getItem(STAGE_KEY); } catch (err) { raw = null; }
-    if (!raw) return;
-    let saved = null;
-    try { saved = JSON.parse(raw); } catch (err) { saved = null; }
-    if (!saved || typeof saved !== "object") return;
-    if (typeof saved.scale === "number" && isFinite(saved.scale)) {
-      cfg.scale = clamp(saved.scale, STAGE_MIN_SCALE, STAGE_MAX_SCALE);
+    if (raw) {
+      let legacy = null;
+      try { legacy = sanitise(JSON.parse(raw)); } catch (err) { legacy = null; }
+      if (legacy) {
+        cfg = legacy;
+        if (Profile.exists()) Profile.save({ stage: cfg });   // migrate forward
+        return;
+      }
     }
-    if (typeof saved.x === "number" && isFinite(saved.x)) cfg.x = clamp(saved.x, 0, 100);
-    if (typeof saved.y === "number" && isFinite(saved.y)) cfg.y = clamp(saved.y, 0, 100);
+    cfg = { scale: STAGE_DEFAULTS.scale, x: STAGE_DEFAULTS.x, y: STAGE_DEFAULTS.y };
   }
 
   function persist() {
+    if (Profile.exists()) Profile.save({ stage: cfg });
+    // The legacy key is kept in step so a downgrade doesn't lose the setting.
     try { window.localStorage.setItem(STAGE_KEY, JSON.stringify(cfg)); } catch (err) { /* quota or private mode */ }
   }
 
@@ -2543,8 +2745,8 @@ const Stage = (function () {
     const box = dom.stage.getBoundingClientRect();
     // Before first layout the stage can measure 0; fall back to the CSS floor
     // so the character is never sized to nothing.
-    const height = box.height || 170;
-    dom.stageActor.style.width = Math.round(height * cfg.scale) + "px";
+    const height = box.height || 210;
+    dom.stageActor.style.height = Math.round(height * cfg.scale) + "px";
     dom.stageActor.style.left = cfg.x + "%";
     dom.stageActor.style.top = cfg.y + "%";
     dom.stageSize.value = String(Math.round(cfg.scale * 100));
@@ -2558,8 +2760,82 @@ const Stage = (function () {
 
   function reset() {
     cfg = { scale: STAGE_DEFAULTS.scale, x: STAGE_DEFAULTS.x, y: STAGE_DEFAULTS.y };
+    setWander(0, 0);
     apply();
     persist();
+  }
+
+  /* ---- life: drifting around the anchor and small idle gestures ---- */
+
+  function reducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function setWander(x, y) {
+    dom.stageActor.style.setProperty("--wander-x", Math.round(x) + "px");
+    dom.stageActor.style.setProperty("--wander-y", Math.round(y) + "px");
+  }
+
+  /**
+   * Pick somewhere nearby to drift to. The reachable area is whatever is left
+   * of the stage once the character's own footprint is taken out, so it can
+   * never wander itself off the edge however it has been sized or placed.
+   */
+  function wanderOnce() {
+    const stageBox = dom.stage.getBoundingClientRect();
+    const actorBox = dom.stageActor.getBoundingClientRect();
+    if (!stageBox.width || !actorBox.width) return;
+
+    const anchorX = stageBox.width * (cfg.x / 100);
+    const anchorY = stageBox.height * (cfg.y / 100);
+    const halfW = actorBox.width / 2;
+    const halfH = actorBox.height / 2;
+
+    const leftRoom = Math.max(0, anchorX - halfW);
+    const rightRoom = Math.max(0, stageBox.width - anchorX - halfW);
+    const upRoom = Math.max(0, anchorY - halfH);
+    const downRoom = Math.max(0, stageBox.height - anchorY - halfH);
+
+    const x = between(-leftRoom * STAGE_WANDER.horizontalBias, rightRoom * STAGE_WANDER.horizontalBias);
+    const y = between(-upRoom * STAGE_WANDER.verticalBias, downRoom * STAGE_WANDER.verticalBias);
+    setWander(x, y);
+  }
+
+  function scheduleWander() {
+    if (wanderTimer) window.clearTimeout(wanderTimer);
+    wanderTimer = window.setTimeout(function () {
+      // Nobody is watching a hidden tab, and interrupting a drag would fight
+      // the user's finger.
+      if (document.visibilityState === "visible" && pointerId === null && !reducedMotion()) wanderOnce();
+      scheduleWander();
+    }, between(STAGE_WANDER.minDelayMs, STAGE_WANDER.maxDelayMs));
+  }
+
+  /** A short one-off movement, layered over whatever the mood animation does. */
+  function gesture(name) {
+    const pick = name || STAGE_GESTURES[Math.floor(Math.random() * STAGE_GESTURES.length)];
+    if (reducedMotion()) return pick;
+    dom.spriteBody.removeAttribute("data-gesture");
+    void dom.spriteBody.offsetWidth;               // restart the animation
+    dom.spriteBody.dataset.gesture = pick;
+    if (gestureClearTimer) window.clearTimeout(gestureClearTimer);
+    gestureClearTimer = window.setTimeout(function () {
+      dom.spriteBody.removeAttribute("data-gesture");
+    }, 2200);
+    return pick;
+  }
+
+  function scheduleGesture() {
+    if (gestureTimer) window.clearTimeout(gestureTimer);
+    gestureTimer = window.setTimeout(function () {
+      if (document.visibilityState === "visible" && pointerId === null) gesture();
+      scheduleGesture();
+    }, between(STAGE_GESTURE_DELAY.minMs, STAGE_GESTURE_DELAY.maxMs));
+  }
+
+  function startLife() {
+    scheduleWander();
+    scheduleGesture();
   }
 
   dom.stageActor.addEventListener("pointerdown", function (event) {
@@ -2571,8 +2847,12 @@ const Stage = (function () {
     // centre itself under the finger on the first move.
     grabOffset.x = event.clientX - (actorBox.left + actorBox.width / 2);
     grabOffset.y = event.clientY - (actorBox.top + actorBox.height / 2);
+    dragDistance = 0;
     dom.stageActor.classList.add("is-dragging");
     dom.stageActor.setPointerCapture(pointerId);
+    // Fold any current drift into the grab so the character does not snap back
+    // to its anchor the moment it is picked up.
+    setWander(0, 0);
     event.preventDefault();
   });
 
@@ -2599,8 +2879,13 @@ const Stage = (function () {
     // A tap that never travelled is a fidget, not a reposition. It must never
     // inject a chat turn — that would pollute the transcript and be replayed to
     // the model as something the character actually said.
-    if (dragDistance < 6) sprites.react();
-    else persist();
+    if (dragDistance < 6) {
+      // A tap is a poke, not a reposition: the character reacts to it.
+      sprites.react();
+      gesture("perk");
+    } else {
+      persist();
+    }
   }
 
   dom.stageActor.addEventListener("pointerup", endDrag);
@@ -2623,7 +2908,16 @@ const Stage = (function () {
     if (orientation.addEventListener) orientation.addEventListener("change", apply);
   }
 
-  return { load: load, apply: apply, reset: reset };
+  return {
+    load: load, apply: apply, reset: reset, startLife: startLife,
+    gesture: gesture, wanderOnce: wanderOnce,
+    config: function () { return { scale: cfg.scale, x: cfg.x, y: cfg.y }; },
+    wander: function () {
+      const style = dom.stageActor.style;
+      return { x: parseFloat(style.getPropertyValue("--wander-x")) || 0,
+               y: parseFloat(style.getPropertyValue("--wander-y")) || 0 };
+    }
+  };
 }());
 
 /**
@@ -2632,14 +2926,33 @@ const Stage = (function () {
  * — a hard-coded offset pushed the composer below the fold on small phones.
  */
 function syncViewportMetrics() {
+  const root = document.documentElement;
   const header = document.querySelector(".app-header");
-  if (!header) return;
-  const height = Math.round(header.getBoundingClientRect().height);
-  if (height > 0) document.documentElement.style.setProperty("--header-h", height + "px");
+  if (header) {
+    const height = Math.round(header.getBoundingClientRect().height);
+    if (height > 0) root.style.setProperty("--header-h", height + "px");
+  }
+
+  // The on-screen keyboard shrinks the *visual* viewport and leaves the layout
+  // viewport alone, so dvh keeps reporting the full screen and the composer
+  // ends up behind the keyboard. visualViewport is the only honest measure.
+  const vv = window.visualViewport;
+  const usable = vv ? Math.round(vv.height) : Math.round(window.innerHeight);
+  root.style.setProperty("--vvh", usable + "px");
+
+  // A large shortfall means a keyboard, not a browser chrome change. The scene
+  // gives up its height first so the conversation and input stay usable.
+  const shortfall = window.innerHeight - usable;
+  document.body.classList.toggle("is-keyboard", shortfall > 140);
+
   Stage.apply();
 }
 
 window.addEventListener("resize", syncViewportMetrics);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", syncViewportMetrics);
+  window.visualViewport.addEventListener("scroll", syncViewportMetrics);
+}
 if (window.ResizeObserver) {
   const headerEl = document.querySelector(".app-header");
   if (headerEl) new window.ResizeObserver(syncViewportMetrics).observe(headerEl);
@@ -4329,7 +4642,10 @@ const Creator = (function () {
       likes: draft.likes,
       dislikes: draft.dislikes,
       inspiration: draft.inspiration,
-      customExpressions: draft.customExpressions
+      customExpressions: draft.customExpressions,
+      // Carried through explicitly: the editor has no geometry controls, and
+      // omitting it would reset the character's size and standing spot.
+      stage: Stage.config()
     });
 
     applyProfile();
@@ -5076,7 +5392,8 @@ window.__companion = {
   localBrain: localBrain, guessMood: guessMood,
   resolveExpression: resolveExpression, spriteCandidates: spriteCandidates,
   applyInteraction: applyInteraction, blendMood: blendMood, commitMood: commitMood,
-  decayMood: decayMood, moodStateLine: moodStateLine
+  decayMood: decayMood, moodStateLine: moodStateLine,
+  STAGE_DEFAULTS: STAGE_DEFAULTS, STAGE_GESTURES: STAGE_GESTURES
 };
 
 (function boot() {
@@ -5122,6 +5439,7 @@ window.__companion = {
   EventSettingsUI.render();
   EventManager.subscribe(EventReactions.handle);
   EventSources.start({ returning: hadConversation });
+  Stage.startLife();
 }());
 
 /* Register service worker for PWA offline support */

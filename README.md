@@ -127,6 +127,50 @@ the sprite on the stage. Replies that arrive as plain prose — or with the olde
 `[[mood:x]]` tag — are still parsed, and an unrecognised emotion is dropped rather
 than shown.
 
+## The companion scene
+
+The character is not an avatar next to a message list. The panel is a scene:
+
+```
+[ stage — the character stands here ]
+[ conversation                      ]
+[ input                             ]
+```
+
+The stage takes the largest single share of a phone screen (~34dvh). The
+character is chibi-proportioned — clearly present, but occupying well under a
+third of the viewport so there is somewhere for it to be.
+
+**It moves.** The character drifts slowly around the spot you put it, with idle
+gestures (a hop, a lean, a look around, a stretch) every ten seconds or so, and
+perks up when you poke it. The drift is bounded by the character's own footprint,
+so it can never wander off the stage however you have sized or placed it. All of
+it stops under `prefers-reduced-motion`.
+
+Three transforms with three owners, which is what lets those layer without
+fighting: the actor's `left/top` is the anchor you set, its `--wander-*` custom
+properties are the drift, and the inner `.sprite` keeps `transform` for the mood
+animation. A fourth element carries the one-off gestures.
+
+**Expressions cross-fade.** Two image layers: candidates load into the hidden
+one, and the swap only happens on a confirmed decode — so a missing or corrupt
+sprite leaves the current expression on screen instead of blanking the
+character. The actor's box takes the artwork's own aspect ratio, so a tall
+character is not letterboxed inside a square and "size" means the same thing
+whatever shape the sprite is.
+
+Size and position are stored **on the character profile**, not globally, so two
+characters can have different presences on the same device; editing a character
+keeps them. Installs from before this change have their old global setting
+adopted once and migrated forward.
+
+**The keyboard.** An on-screen keyboard shrinks the visual viewport but leaves
+the layout viewport alone, so `dvh` keeps reporting the full screen and the
+composer ends up behind the keyboard. The real height is published from
+`visualViewport` as `--vvh`; when the shortfall says a keyboard is open, the
+scene gives up its height first so the conversation and input stay reachable,
+and takes it back when the keyboard closes.
+
 ## Reacting to what's happening
 
 Beyond replying to messages, the companion notices a few things about its
