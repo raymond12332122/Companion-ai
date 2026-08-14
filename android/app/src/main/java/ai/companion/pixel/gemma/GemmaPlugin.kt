@@ -261,11 +261,11 @@ class GemmaPlugin : Plugin() {
      */
     @PluginMethod
     fun generate(call: PluginCall) {
-        val system = call.getString("system")
-        if (system.isNullOrEmpty()) {
-            call.reject("Missing \"system\" prompt", "invalid_input")
-            return
-        }
+        // TEMP DEBUG — was `call.getString("system")` with a reject on blank,
+        // which made a true no-system-prompt diagnostic call impossible.
+        // formatGemmaPrompt() already treats blank system as "omit it", so
+        // there's nothing left to guard here.
+        val system = call.getString("system") ?: ""
 
         val rawMessages: JSArray = call.getArray("messages") ?: JSArray()
         val messages = ArrayList<GemmaMessage>()

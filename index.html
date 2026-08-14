@@ -1783,6 +1783,52 @@ function pushGemmaDebugMessage() {
   pushMessage("system", GemmaDebug.summary());
 }
 
+/**
+ * TEMP DEBUG — the "/gemma-minimal-test" slash command. Talks to DeviceGemma
+ * directly rather than through callProvider()'s "gemma" branch: no
+ * systemPrompt(), no historyForApi(), no timeout race against
+ * AI_CONFIG.deviceFirstTokenMs, no GemmaStream, no effect on state.transport
+ * or the normal conversation. Isolated on purpose, so a result here can only
+ * be explained by the model + minimal prompt, not by anything else this app
+ * does.
+ */
+async function runGemmaMinimalTest() {
+  if (!DeviceGemma) {
+    pushMessage("system", "[Gemma minimal test] DeviceGemma bridge not available — not running in the Android app, or the plugin didn't register.");
+    return;
+  }
+  if (!(await checkGemmaAvailable())) {
+    pushMessage("system", "[Gemma minimal test] No Gemma model available (" +
+      (gemmaStatus && gemmaStatus.reason ? gemmaStatus.reason : "unknown reason") + "). Import one in ⚙ → Local Gemma first.");
+    return;
+  }
+
+  const startedAt = Date.now();
+  try {
+    const result = await DeviceGemma.generate({
+      system: "",
+      messages: [{ role: "user", content: "What is 2 + 2?" }],
+      temperature: 0.85
+    });
+    const roundTripMs = Date.now() - startedAt;
+    const lines = [
+      "[Gemma minimal test] result:",
+      "Prompt tokens: " + (typeof result.promptTokens === "number" ? result.promptTokens : "?"),
+      "Generated tokens: " + (typeof result.outputTokens === "number" ? result.outputTokens : "?"),
+      "Raw native output: " + JSON.stringify(result.rawOutput || ""),
+      "Parsed response: " + JSON.stringify(result.response || ""),
+      "Native inference time: " + (typeof result.inferenceMs === "number" ? result.inferenceMs + " ms" : "?"),
+      "Total round-trip (incl. bridge): " + roundTripMs + " ms",
+      "Final prompt sent to native inference:\n" + (result.finalPrompt || "?")
+    ];
+    pushMessage("system", lines.join("\n"));
+  } catch (err) {
+    const roundTripMs = Date.now() - startedAt;
+    pushMessage("system", "[Gemma minimal test] FAILED after " + roundTripMs + " ms — " +
+      (err && err.kind ? err.kind + ": " : "") + (err && err.message ? err.message : String(err)));
+  }
+}
+
 /* =========================================================================
  * 2. CHARACTER DEFINITION
  * ========================================================================= */
@@ -3830,6 +3876,18 @@ function runCommand(raw) {
 
   if (command === "/clear") {
     clearEverything(true);
+    return true;
+  }
+
+  // TEMP DEBUG — bypasses systemPrompt(), history, memory, relationship,
+  // and every other companion system entirely: sends exactly one message,
+  // "What is 2 + 2?", with no system text at all, straight to the Gemma
+  // plugin. Exists to answer one question in isolation from everything
+  // else this app does: does basic inference work at all on a minimal
+  // input? See runGemmaMinimalTest() below.
+  if (command === "/gemma-minimal-test") {
+    pushMessage("system", "Running minimal Gemma test — no personality, no memory, no history, no relationship, no event context. Just \"What is 2 + 2?\" with an empty system prompt.");
+    runGemmaMinimalTest();
     return true;
   }
 

@@ -308,35 +308,46 @@ class GemmaEngine {
     }
 
     /**
-     * Gemma has no system role; the convention its instruction tuning used is
-     * to fold the system text into the first user turn.
+     * Plain, unmarked text — no `<start_of_turn>`/`<end_of_turn>`.
+     *
+     * This engine used to hand-embed those as literal characters, which is
+     * wrong for a `.task` bundle: MediaPipe's LLM Inference API applies the
+     * model's own chat template internally for `.task`/`.litertlm` files
+     * (confirmed against flutter_gemma, which wraps this same native API:
+     * "MediaPipe handles chat templates internally" for `.task`, versus
+     * "manual chat template formatting" being required only for raw
+     * `.bin`/`.tflite` weights). Feeding it text that ALSO contains literal
+     * `<start_of_turn>user`/`<end_of_turn>` doesn't skip templating, it
+     * doubles it — the runtime wraps the whole thing again, so the model
+     * sees its own turn markers duplicated and, in testing, garbled and
+     * confused. This exact risk was already called out in the sibling
+     * engine this package deliberately shares no code with — see
+     * ai.companion.pixel.llm.ChatTemplate's PLAIN family and its comment:
+     * "Newer .litertlm bundles can carry their own prompt template and apply
+     * it inside the runtime, in which case adding markers here would double
+     * them up." This is that same PLAIN approach, independently arrived at.
      */
     private fun formatGemmaPrompt(system: String, messages: List<GemmaMessage>): String {
         val out = StringBuilder()
-        var systemPending = system.isNotBlank()
+        if (system.isNotBlank()) out.append(system).append("\n\n")
         for (message in messages) {
             val isAssistant = message.role == "assistant" || message.role == "model" || message.role == "bot"
-            if (isAssistant) {
-                out.append("<start_of_turn>model\n").append(message.content).append("<end_of_turn>\n")
-            } else {
-                out.append("<start_of_turn>user\n")
-                if (systemPending) {
-                    out.append(system).append("\n\n")
-                    systemPending = false
-                }
-                out.append(message.content).append("<end_of_turn>\n")
-            }
+            val label = if (isAssistant) "Assistant" else "User"
+            out.append(label).append(": ").append(message.content).append("\n")
         }
-        if (systemPending) {
-            out.append("<start_of_turn>user\n").append(system).append("<end_of_turn>\n")
-        }
-        out.append("<start_of_turn>model\n")
+        out.append("Assistant: ")
         return out.toString()
     }
 
     private fun trimAtGemmaStop(text: String): String {
         var cut = text.length
-        for (stop in listOf("<end_of_turn>", "<start_of_turn>")) {
+        // "\nUser:" matches the plain-text turn labels formatGemmaPrompt() now
+        // uses, for a model that keeps going and starts writing the next
+        // turn itself. The two <..._turn> markers are a safety net in case
+        // the runtime's own internal template still surfaces its control
+        // tokens as literal text in decoded output — harmless no-ops if it
+        // doesn't.
+        for (stop in listOf("\nUser:", "\nuser:", "<end_of_turn>", "<start_of_turn>")) {
             val index = text.indexOf(stop)
             if (index in 0 until cut) cut = index
         }
