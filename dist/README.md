@@ -11,7 +11,7 @@ loop: download it from GitHub in the phone's browser and open it. There is no
 https://github.com/raymond12332122/Companion-ai/raw/refs/heads/claude/ai-companion-buddy-jvj4bq/dist/companion-ai-debug.apk
 ```
 
-SHA-256: `0f13d84d6a2ced71ba031dc2c43a0d288721b15a319517eaef6c83e3e1728627`
+SHA-256: `edb63a2ab6500f7668cfcad8d37c45d098e09a6503f18cc0e2013757d99f7203`
 
 Android will ask permission to install from whatever app opened the file
 (Chrome, or the file manager) — that prompt is expected for anything not from

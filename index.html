@@ -1637,6 +1637,47 @@ const GemmaStream = {
   }
 };
 
+/**
+ * TEMP DEBUG — remove once Gemma inference is confirmed reaching the model
+ * end to end. Answers one question: for the message that was just sent, did
+ * it actually go USER -> gemma provider -> native plugin -> model -> reply,
+ * or did it fail somewhere and fall back to the offline brain? Populated by
+ * callProvider()'s "gemma" branch and askCompanion(), read by
+ * pushGemmaDebugMessage() below. Does not change what any provider returns
+ * or how a reply is chosen — it only records what already happened.
+ */
+const GemmaDebug = {
+  reset: function () {
+    this.provider = AI_CONFIG.provider;
+    this.modelLoaded = null;
+    this.inferenceStarted = false;
+    this.inferenceCompleted = false;
+    this.fallbackTriggered = false;
+    this.fallbackReason = null;
+    this.durationMs = null;
+  },
+  summary: function () {
+    const yn = function (v) { return v === null ? "?" : (v ? "YES" : "NO"); };
+    const lines = [
+      "[Gemma debug] active provider: " + this.provider,
+      "Gemma model loaded: " + yn(this.modelLoaded),
+      "Gemma inference started: " + yn(this.inferenceStarted),
+      "Gemma inference completed: " + yn(this.inferenceCompleted),
+      "Fallback triggered: " + yn(this.fallbackTriggered)
+    ];
+    if (this.fallbackTriggered) lines.push("Fallback reason: " + (this.fallbackReason || "(none recorded)"));
+    lines.push("Duration: " + (this.durationMs === null ? "?" : this.durationMs + " ms"));
+    return lines.join("\n");
+  }
+};
+GemmaDebug.reset();
+
+/** TEMP DEBUG — prints GemmaDebug.summary() into the chat as a system line. */
+function pushGemmaDebugMessage() {
+  if (AI_CONFIG.provider !== "gemma") return;
+  pushMessage("system", GemmaDebug.summary());
+}
+
 /* =========================================================================
  * 2. CHARACTER DEFINITION
  * ========================================================================= */
@@ -3999,8 +4040,15 @@ async function callProvider(userText, options) {
   }
 
   if (provider === "gemma") {
-    if (!DeviceGemma) throw AiError("config", "Local Gemma inference isn't available outside the Android app");
-    if (!(await checkGemmaAvailable())) {
+    GemmaDebug.provider = "gemma"; // TEMP DEBUG
+    if (!DeviceGemma) {
+      GemmaDebug.fallbackReason = "config: no DeviceGemma bridge"; // TEMP DEBUG
+      throw AiError("config", "Local Gemma inference isn't available outside the Android app");
+    }
+    const gemmaAvailable = await checkGemmaAvailable();
+    GemmaDebug.modelLoaded = Boolean(gemmaStatus && gemmaStatus.loaded); // TEMP DEBUG
+    if (!gemmaAvailable) {
+      GemmaDebug.fallbackReason = "config: no Gemma model imported — " + (gemmaStatus && gemmaStatus.reason); // TEMP DEBUG
       throw AiError("config", "No Gemma model imported yet — see ⚙ → Local Gemma");
     }
 
@@ -4021,6 +4069,8 @@ async function callProvider(userText, options) {
 
     GemmaStream.begin(function () { rearm(AI_CONFIG.deviceStallMs); });
 
+    const gemmaStarted = Date.now(); // TEMP DEBUG
+    GemmaDebug.inferenceStarted = true; // TEMP DEBUG
     let gemmaResult;
     try {
       gemmaResult = await Promise.race([
@@ -4032,13 +4082,18 @@ async function callProvider(userText, options) {
         }),
         budget
       ]);
+      GemmaDebug.inferenceCompleted = true; // TEMP DEBUG
     } catch (err) {
+      GemmaDebug.durationMs = Date.now() - gemmaStarted; // TEMP DEBUG
+      GemmaDebug.fallbackReason = "inference: " + (err && err.kind ? err.kind + " — " : "") +
+        (err && err.message ? err.message : String(err)); // TEMP DEBUG
       if (err && err.kind) throw err;
       throw AiError("network", "On-device inference failed: " + (err && err.message ? err.message : String(err)));
     } finally {
       disarm();
       GemmaStream.end();
     }
+    GemmaDebug.durationMs = Date.now() - gemmaStarted; // TEMP DEBUG
 
     return JSON.stringify({
       response: gemmaResult && typeof gemmaResult.response === "string" ? gemmaResult.response : "",
@@ -4577,12 +4632,23 @@ async function askCompanion(userText, relationshipEventKinds, options) {
     sprites.set("thinking");
   }
 
+  GemmaDebug.reset(); // TEMP DEBUG
+
   const started = Date.now();
   let reply = null;
   let failure = null;
 
   try {
     if (AI_CONFIG.provider === "local" || state.transport === "local") {
+      // TEMP DEBUG: provider is "gemma" but transport already fell back
+      // before this message was even sent — detectBackend() or a prior
+      // failed load parked it on "local", so callProvider() is never
+      // reached and none of the fields below this line get set.
+      if (AI_CONFIG.provider === "gemma") {
+        GemmaDebug.fallbackTriggered = true;
+        GemmaDebug.fallbackReason = "transport already \"local\" before this message — " +
+          "model likely never loaded (see ⚙ → Local Gemma)";
+      }
       await wait(360 + Math.random() * 500);   // small beat so the typing indicator reads naturally
       reply = localBrain(userText);
     } else {
@@ -4596,6 +4662,12 @@ async function askCompanion(userText, relationshipEventKinds, options) {
     }
   } catch (err) {
     failure = err && err.kind ? err : AiError("network", String(err && err.message || err));
+    // TEMP DEBUG: callProvider()'s gemma branch usually already set a more
+    // specific fallbackReason; this only fills the gap if it didn't.
+    if (AI_CONFIG.provider === "gemma") {
+      GemmaDebug.fallbackTriggered = true;
+      if (!GemmaDebug.fallbackReason) GemmaDebug.fallbackReason = failure.kind + ": " + failure.message;
+    }
   }
 
   // Keep the typing indicator visible for a readable minimum.
@@ -4619,6 +4691,7 @@ async function askCompanion(userText, relationshipEventKinds, options) {
       sprites.set("sad");
       pushMessage("bot", friendly, { error: true, retryText: userText, mood: "sad" });
     }
+    pushGemmaDebugMessage(); // TEMP DEBUG
     setBusy(false);
     return;
   }
@@ -4626,6 +4699,7 @@ async function askCompanion(userText, relationshipEventKinds, options) {
   const committed = commitMood(resolveExpression(reply.mood, relationshipEventKinds), reply.explicit);
   sprites.set(committed);
   pushMessage("bot", reply.text, { mood: reply.mood });
+  pushGemmaDebugMessage(); // TEMP DEBUG
   setBusy(false);
   // Movement to match the expression the emotion system just settled on, then
   // a drift back toward idle. The expression itself is not decided here.
