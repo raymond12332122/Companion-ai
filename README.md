@@ -171,6 +171,56 @@ composer ends up behind the keyboard. The real height is published from
 scene gives up its height first so the conversation and input stay reachable,
 and takes it back when the keyboard closes.
 
+## The behaviour layer
+
+The stage knows where the character stands; the sprite loader knows which
+picture to draw. Neither knows what a poke *means*, or that a compliment lands
+differently on a close friend than on a stranger. That judgement lives in one
+place, so chat, events and touch all react through the same vocabulary:
+
+`idle · blink · greeting · happy · excited · curious · surprised · annoyed ·
+angry · embarrassed · sad · sleepy · thinking · talking · poke · settle`
+
+Each behaviour is a movement plus an optional expression to *flash*. A
+character with only a neutral sprite still gets every movement and simply keeps
+its face — the expression runs through the same fallback chain as everything
+else, so no character is required to own every asset.
+
+Two rules hold the design together:
+
+**It never invents an emotion system.** A behaviour either *previews* an
+expression — a flicker deliberately not committed to mood — or defers entirely
+to the existing `resolveExpression → commitMood → sprites.set` path. That
+distinction matters: committing a flicker would bias the mood the model then
+has to overcome, and `blendMood`'s inertia would make the bias stick for turns.
+So the send-time reaction is visible immediately and the model's own emotion
+still lands cleanly on top of it.
+
+**Nothing here speaks or spends.** No behaviour writes a chat message and none
+reaches the network. Blinking, drifting, poking and settling are free by
+construction rather than by policy.
+
+### What triggers what
+
+| Moment | Reaction | Cost |
+| --- | --- | --- |
+| Idle | one scheduler, mostly doing nothing: blink, drift, small gesture | free |
+| User sends a message | relationship signal → stance → mild acknowledgement | free |
+| Model replies | movement matching the committed emotion, then settle | (the reply itself) |
+| Poke | varies with mood, relationship and how often you keep doing it | free |
+| Events | glance on return, greeting on stirring, settle on charge, droop at night | free |
+
+Reactions are defaults, not rules: teasing a close friend can read as fluster
+rather than irritation, warmth from a stranger as surprise rather than delight,
+and an already-irritated character escalates instead of repeating itself.
+Repeated poking wears patience down and the character flinches away — a
+movement only; the anchor you set is never touched.
+
+Idle runs on a **single timer** for the character's whole life rather than one
+per kind of movement, so cost stays flat as behaviours are added and "don't do
+the same thing twice" is one check instead of several. Everything stops under
+`prefers-reduced-motion`, where expression changes still work.
+
 ## Reacting to what's happening
 
 Beyond replying to messages, the companion notices a few things about its

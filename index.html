@@ -276,6 +276,18 @@
   .sprite__body[data-gesture="wiggle"]  { animation: ges-wiggle .9s ease-in-out; }
   .sprite__body[data-gesture="stretch"] { animation: ges-stretch 1.6s ease-in-out; }
   .sprite__body[data-gesture="perk"]    { animation: ges-perk .7s cubic-bezier(.3, 1.5, .5, 1); }
+  /* Added for the behaviour layer. Blink is a squash rather than an eyelid,
+   * because uploaded artwork has no eyes this code can reach. */
+  .sprite__body[data-gesture="blink"]   { animation: ges-blink .16s ease-in-out; }
+  .sprite__body[data-gesture="recoil"]  { animation: ges-recoil .7s cubic-bezier(.2, 1.3, .4, 1); }
+  .sprite__body[data-gesture="flinch"]  { animation: ges-flinch .45s ease-out; }
+  .sprite__body[data-gesture="nod"]     { animation: ges-nod .8s ease-in-out; }
+  .sprite__body[data-gesture="shake"]   { animation: ges-shake .6s ease-in-out; }
+  .sprite__body[data-gesture="sway"]    { animation: ges-sway 3.2s ease-in-out; }
+  .sprite__body[data-gesture="bounce"]  { animation: ges-bounce .9s cubic-bezier(.3, 1.4, .5, 1) 2; }
+  .sprite__body[data-gesture="shy"]     { animation: ges-shy 1.4s ease-in-out; }
+  .sprite__body[data-gesture="droop"]   { animation: ges-droop 2.4s ease-in-out; }
+  .sprite__body[data-gesture="talk"]    { animation: ges-talk .5s ease-in-out 3; }
 
   @keyframes ges-hop {
     0%, 100% { transform: translateY(0) scaleY(1); }
@@ -2613,9 +2625,9 @@ const sprites = (function () {
     setTimeout(function () { dom.sprite.style.animation = ""; }, 400);
   }
 
-  function set(mood) {
-    if (!isExpression(mood)) mood = "neutral";
-    state.mood = mood;
+  let previewTimer = null;
+
+  function render(mood) {
     dom.sprite.dataset.mood = BASE_EXPRESSIONS.indexOf(mood) !== -1 ? mood : "neutral";
     dom.moodLabel.textContent = mood.replace(/_/g, " ");
     dom.statMood.textContent = mood.replace(/_/g, " ");
@@ -2626,8 +2638,42 @@ const sprites = (function () {
     attemptNext();
   }
 
+  function set(mood) {
+    if (!isExpression(mood)) mood = "neutral";
+    if (previewTimer) { window.clearTimeout(previewTimer); previewTimer = null; }
+    state.mood = mood;
+    render(mood);
+  }
+
+  /**
+   * Show a face for a moment without adopting it.
+   *
+   * A flicker of surprise at being poked, or a flash of annoyance at a jab, is
+   * a reaction — not a change in how the character feels. Committing those to
+   * CHARACTER.mood would bias the mood the model then has to overcome, and the
+   * inertia in blendMood would make the bias stick for turns. So the preview
+   * paints the sprite only, and `state.mood` (the committed truth) is what it
+   * reverts to.
+   */
+  function preview(mood, ms) {
+    if (!isExpression(mood)) return false;
+    if (previewTimer) window.clearTimeout(previewTimer);
+    const committed = state.mood;
+    if (mood === committed) return false;
+    render(mood);
+    previewTimer = window.setTimeout(function () {
+      previewTimer = null;
+      render(state.mood);            // state.mood may have moved on; that wins
+    }, Math.max(200, ms || 1400));
+    return true;
+  }
+
+  function previewing() { return previewTimer !== null; }
+
   return {
     set: set,
+    preview: preview,
+    previewing: previewing,
     react: react,
     /** Uploaded artwork changed — retry every source and redraw. */
     refresh: function () {
@@ -2685,16 +2731,19 @@ const STAGE_WANDER = {
   verticalBias: 0.1
 };
 
-const STAGE_GESTURES = ["hop", "lean", "look", "wiggle", "stretch", "perk"];
-const STAGE_GESTURE_DELAY = { minMs: 6000, maxMs: 17000 };
+const STAGE_GESTURES = [
+  "hop", "lean", "look", "wiggle", "stretch", "perk",
+  "blink", "recoil", "flinch", "nod", "shake", "sway", "bounce", "shy", "droop", "talk"
+];
+/** How often the single idle scheduler wakes up to consider doing something. */
+const STAGE_IDLE_TICK = { minMs: 2600, maxMs: 5200 };
 
 const Stage = (function () {
   let cfg = { scale: STAGE_DEFAULTS.scale, x: STAGE_DEFAULTS.x, y: STAGE_DEFAULTS.y };
   let pointerId = null;
   let grabOffset = { x: 0, y: 0 };
   let dragDistance = 0;
-  let wanderTimer = null;
-  let gestureTimer = null;
+  let idleTimer = null;
   let gestureClearTimer = null;
 
   function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
@@ -2801,14 +2850,35 @@ const Stage = (function () {
     setWander(x, y);
   }
 
-  function scheduleWander() {
-    if (wanderTimer) window.clearTimeout(wanderTimer);
-    wanderTimer = window.setTimeout(function () {
-      // Nobody is watching a hidden tab, and interrupting a drag would fight
-      // the user's finger.
-      if (document.visibilityState === "visible" && pointerId === null && !reducedMotion()) wanderOnce();
-      scheduleWander();
-    }, between(STAGE_WANDER.minDelayMs, STAGE_WANDER.maxDelayMs));
+  /**
+   * Shove the character a little way from where it is, then let it drift back.
+   * Used for flinching away from a poke — a movement, not a reposition, so the
+   * anchor the user chose is never touched.
+   */
+  function nudge(px) {
+    const current = { x: currentWander().x, y: currentWander().y };
+    const stageBox = dom.stage.getBoundingClientRect();
+    const actorBox = dom.stageActor.getBoundingClientRect();
+    if (!stageBox.width || !actorBox.width) return;
+    const anchorX = stageBox.width * (cfg.x / 100);
+    const half = actorBox.width / 2;
+    const room = { left: Math.max(0, anchorX - half), right: Math.max(0, stageBox.width - anchorX - half) };
+    const settled = clamp(current.x + px, -room.left, room.right);
+    // Pinned against that edge: flinching into a wall is no flinch at all, so
+    // it recoils the other way instead of standing perfectly still.
+    if (Math.abs(settled - current.x) < 1) {
+      setWander(clamp(current.x - px, -room.left, room.right), current.y);
+      return;
+    }
+    setWander(settled, current.y);
+  }
+
+  function currentWander() {
+    const style = dom.stageActor.style;
+    return {
+      x: parseFloat(style.getPropertyValue("--wander-x")) || 0,
+      y: parseFloat(style.getPropertyValue("--wander-y")) || 0
+    };
   }
 
   /** A short one-off movement, layered over whatever the mood animation does. */
@@ -2825,18 +2895,23 @@ const Stage = (function () {
     return pick;
   }
 
-  function scheduleGesture() {
-    if (gestureTimer) window.clearTimeout(gestureTimer);
-    gestureTimer = window.setTimeout(function () {
-      if (document.visibilityState === "visible" && pointerId === null) gesture();
-      scheduleGesture();
-    }, between(STAGE_GESTURE_DELAY.minMs, STAGE_GESTURE_DELAY.maxMs));
+  /**
+   * One timer for the character's whole idle life, rather than one per kind of
+   * movement. Each tick decides what — if anything — to do, which keeps the
+   * cost flat as behaviours are added and makes "don't do the same thing
+   * twice" a single check instead of one per scheduler.
+   */
+  function tick() {
+    if (idleTimer) window.clearTimeout(idleTimer);
+    idleTimer = window.setTimeout(function () {
+      const awake = document.visibilityState === "visible" && pointerId === null && !state.busy;
+      if (awake) Behaviour.idleBeat();
+      tick();
+    }, between(STAGE_IDLE_TICK.minMs, STAGE_IDLE_TICK.maxMs));
   }
 
-  function startLife() {
-    scheduleWander();
-    scheduleGesture();
-  }
+  function startLife() { tick(); }
+  function stopLife() { if (idleTimer) { window.clearTimeout(idleTimer); idleTimer = null; } }
 
   dom.stageActor.addEventListener("pointerdown", function (event) {
     if (pointerId !== null) return;
@@ -2880,9 +2955,9 @@ const Stage = (function () {
     // inject a chat turn — that would pollute the transcript and be replayed to
     // the model as something the character actually said.
     if (dragDistance < 6) {
-      // A tap is a poke, not a reposition: the character reacts to it.
-      sprites.react();
-      gesture("perk");
+      // A tap is a poke, not a reposition. What the character does about it is
+      // the behaviour layer's business, not the stage's.
+      Behaviour.poke();
     } else {
       persist();
     }
@@ -2909,14 +2984,13 @@ const Stage = (function () {
   }
 
   return {
-    load: load, apply: apply, reset: reset, startLife: startLife,
-    gesture: gesture, wanderOnce: wanderOnce,
+    load: load, apply: apply, reset: reset,
+    startLife: startLife, stopLife: stopLife,
+    gesture: gesture, wanderOnce: wanderOnce, nudge: nudge,
+    reducedMotion: reducedMotion,
+    isDragging: function () { return pointerId !== null; },
     config: function () { return { scale: cfg.scale, x: cfg.x, y: cfg.y }; },
-    wander: function () {
-      const style = dom.stageActor.style;
-      return { x: parseFloat(style.getPropertyValue("--wander-x")) || 0,
-               y: parseFloat(style.getPropertyValue("--wander-y")) || 0 };
-    }
+    wander: currentWander
   };
 }());
 
@@ -3983,10 +4057,22 @@ async function askCompanion(userText, relationshipEventKinds, options) {
   // is told reflects a mood that has had a turn to cool.
   decayMood();
 
+  state.lastUserText = userText;
   setBusy(true);
   setTyping(true);
-  sprites.set("thinking");
-  state.lastUserText = userText;
+  Behaviour.play("thinking");
+  // The reaction to what the user just said has to be visible for a moment, or
+  // it is overwritten by the thinking face on the very next line and nobody
+  // ever sees it. The typing indicator already signals that a reply is coming,
+  // so the thinking expression is only filler for a slow provider — it waits
+  // its turn, and is dropped entirely if the reply beats it.
+  if (sprites.previewing()) {
+    window.setTimeout(function () {
+      if (state.busy && state.lastUserText === userText) sprites.set("thinking");
+    }, 950);
+  } else {
+    sprites.set("thinking");
+  }
 
   const started = Date.now();
   let reply = null;
@@ -4034,9 +4120,13 @@ async function askCompanion(userText, relationshipEventKinds, options) {
     return;
   }
 
-  sprites.set(commitMood(resolveExpression(reply.mood, relationshipEventKinds), reply.explicit));
+  const committed = commitMood(resolveExpression(reply.mood, relationshipEventKinds), reply.explicit);
+  sprites.set(committed);
   pushMessage("bot", reply.text, { mood: reply.mood });
   setBusy(false);
+  // Movement to match the expression the emotion system just settled on, then
+  // a drift back toward idle. The expression itself is not decided here.
+  Behaviour.reactToReply(committed);
 }
 
 function wait(ms) {
@@ -4061,6 +4151,9 @@ function submitText(rawText) {
   const relResult = applyInteraction(text);
   if (learned.length || relResult.changed) saveState();
   updateSidebar();
+  // Acknowledge the message visually straight away. This is a preview only —
+  // it never commits a mood, so the model's own emotion still lands cleanly.
+  Behaviour.reactToUserMessage(text, relResult.events);
   askCompanion(text, relResult.events);
 }
 
@@ -4749,6 +4842,283 @@ window.addEventListener("error", function (event) {
 });
 
 /* =========================================================================
+ * 12b. BEHAVIOUR LAYER — what the character *does*
+ * =========================================================================
+ * The stage knows where the character stands and the sprite loader knows which
+ * picture to draw. Neither knows what a poke means, or that a compliment should
+ * land differently on a close friend than on a stranger. That judgement lives
+ * here, in one place, so every caller — chat, events, touch — reacts through
+ * the same vocabulary.
+ *
+ * Two rules hold the design together:
+ *
+ *   1. This layer never invents an emotion system. A behaviour either previews
+ *      an expression (a flicker that is deliberately NOT committed to mood) or
+ *      defers entirely to the existing resolveExpression -> commitMood ->
+ *      sprites.set path. There is exactly one authority on how the character
+ *      feels, and it is not this file's.
+ *
+ *   2. Nothing here ever speaks or spends. No behaviour writes a chat message
+ *      and no behaviour reaches the network. Poking, blinking, drifting and
+ *      settling are free by construction, not by policy.
+ * ========================================================================= */
+
+/**
+ * The vocabulary. Each entry is a movement plus an optional expression to
+ * flash while it plays. Missing artwork is not a problem: `preview` runs
+ * through the same fallback chain as everything else, so a character with only
+ * a neutral sprite still gets the movement and simply keeps its face.
+ */
+const BEHAVIOURS = {
+  idle:        { gestures: ["look", "sway", "stretch", "lean"], weight: 1 },
+  blink:       { gestures: ["blink"], quiet: true },
+  greeting:    { gestures: ["perk", "bounce"], expression: "happy", hold: 1600 },
+  happy:       { gestures: ["hop", "bounce"], expression: "happy", hold: 1500 },
+  excited:     { gestures: ["bounce", "hop"], expression: "excited", hold: 1600 },
+  curious:     { gestures: ["look", "lean"], expression: "curious", hold: 1500 },
+  surprised:   { gestures: ["perk", "flinch"], expression: "surprised", hold: 1300 },
+  annoyed:     { gestures: ["shake", "recoil"], expression: "annoyed", hold: 1500 },
+  angry:       { gestures: ["shake"], expression: "angry", hold: 1600 },
+  embarrassed: { gestures: ["shy", "wiggle"], expression: "embarrassed", hold: 1800 },
+  sad:         { gestures: ["droop"], expression: "sad", hold: 1800 },
+  sleepy:      { gestures: ["droop", "sway"], expression: "sleepy", hold: 2000 },
+  thinking:    { gestures: ["lean", "look"], quiet: true },
+  talking:     { gestures: ["talk"], quiet: true },
+  poke:        { gestures: ["flinch", "recoil", "wiggle", "perk"], hold: 1200 },
+  settle:      { gestures: ["sway"], quiet: true }
+};
+
+/** Which behaviour suits an expression, when all we have is the expression. */
+const EXPRESSION_BEHAVIOUR = {
+  happy: "happy", excited: "excited", curious: "curious", surprised: "surprised",
+  annoyed: "annoyed", angry: "angry", embarrassed: "embarrassed", sad: "sad",
+  sleepy: "sleepy", chaotic: "excited", thinking: "thinking", neutral: "settle"
+};
+
+/**
+ * Default visual reaction to what the user's message is doing. These are
+ * starting points, not rules — pickReaction() below lets mood and relationship
+ * override them, so the same jab reads differently from a stranger and from
+ * someone the character likes.
+ */
+const STANCE_BEHAVIOUR = {
+  tease: "annoyed",
+  challenge: "annoyed",
+  belittle: "annoyed",
+  bait: "curious",
+  opinion_probe: "curious",
+  flirt: "embarrassed",
+  vent: "sad",
+  praise: "embarrassed"
+};
+
+/** A relationship signal outranks a stance read: it is the stronger evidence. */
+const SIGNAL_BEHAVIOUR = {
+  gratitude: "happy",
+  compliment: "embarrassed",
+  disclosure: "curious",
+  apology: "curious",
+  romantic: "embarrassed",
+  insult: "annoyed",
+  dismissal: "annoyed",
+  rupture: "angry"
+};
+
+const Behaviour = (function () {
+  const recent = [];               // anti-repetition window
+  let lastPokeAt = 0;
+  let pokeStreak = 0;
+  let settleTimer = null;
+
+  function warm() {
+    const stage = CHARACTER.relationship.stage;
+    return stage === "friend" || stage === "close_friend" ||
+           stage === "romantic_interest" || stage === "partner";
+  }
+
+  function remember(name) {
+    recent.push(name);
+    if (recent.length > 4) recent.shift();
+  }
+
+  /**
+   * Avoid doing the same thing twice running — the tell of a scripted toy.
+   *
+   * Two tiers, because a single "not in the recent window" filter empties out
+   * whenever the window is as large as the pool, and then silently allows the
+   * back-to-back repeat it was meant to stop. Preferring unseen gestures is a
+   * nicety; never immediately repeating is the actual rule.
+   */
+  function chooseGesture(list) {
+    if (list.length === 1) return list[0];
+    const last = recent[recent.length - 1];
+    const allowed = list.filter(function (g) { return g !== last; });
+    const fresh = allowed.filter(function (g) { return recent.indexOf(g) === -1; });
+    const pool = fresh.length ? fresh : allowed;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  /**
+   * Run a behaviour. `options.commit` is the only way an expression here
+   * becomes the character's actual mood, and it is used solely by the AI
+   * response path, which has already gone through resolveExpression.
+   */
+  function play(name, options) {
+    const spec = BEHAVIOURS[name];
+    if (!spec) return null;
+    const opts = options || {};
+
+    const gesture = chooseGesture(spec.gestures);
+    remember(gesture);
+    Stage.gesture(gesture);
+
+    const expression = opts.expression || spec.expression;
+    if (expression && !opts.commit) {
+      // A flicker, not a feeling. Never touches CHARACTER.mood.
+      sprites.preview(expression, opts.hold || spec.hold || 1400);
+    }
+    return { behaviour: name, gesture: gesture, expression: expression || null };
+  }
+
+  /**
+   * One beat of idle life. Deliberately mostly nothing: a character that
+   * fidgets on every tick is as wrong as one that never moves.
+   */
+  function idleBeat() {
+    const roll = Math.random();
+    if (roll < 0.34) return { behaviour: "none" };
+    if (roll < 0.52) { Stage.wanderOnce(); return { behaviour: "wander" }; }
+    if (roll < 0.72) return play("blink");
+
+    // Sleepiness at night, liveliness when the mood is up: the idle repertoire
+    // leans on how the character currently is rather than being one loop.
+    const mood = CHARACTER.mood.current;
+    const lively = (mood === "excited" || mood === "happy") && CHARACTER.mood.intensity > 0.5;
+
+    // A strongly held mood outranks the hour: someone wound up at 1am is still
+    // wound up, and acting drowsy would contradict what they just said.
+    if (lively) return Math.random() < 0.5 ? play("happy", { hold: 0 }) : play("idle");
+    if (mood === "sleepy" || EventSources.period() === "night") {
+      return Math.random() < 0.6 ? play("sleepy", { hold: 0 }) : play("idle");
+    }
+    return play("idle");
+  }
+
+  /**
+   * What the character does the instant the user hits send, before anything
+   * has been asked of the model. Relationship signal first (strongest read),
+   * then conversational stance, then a mild default.
+   */
+  function pickReaction(text, signalKinds) {
+    for (let i = 0; i < (signalKinds || []).length; i += 1) {
+      const mapped = SIGNAL_BEHAVIOUR[signalKinds[i]];
+      if (mapped) return softenForRelationship(mapped);
+    }
+    const stances = readStance(text);
+    for (let i = 0; i < stances.length; i += 1) {
+      const mapped = STANCE_BEHAVIOUR[stances[i]];
+      if (mapped) return softenForRelationship(mapped);
+    }
+    if (/\?\s*$/.test(text)) return "curious";
+
+    // Nothing matched. The stance and relationship patterns are deliberately
+    // narrow — "thanks, you're actually great" slips past both — and a
+    // character that visibly registers nothing looks broken. So a message with
+    // real content still gets a mild acknowledgement; only a throwaway line
+    // gets none.
+    if (text.trim().split(/\s+/).length >= 3) return "curious";
+    return null;
+  }
+
+  /**
+   * The same input does not land the same way at every distance. Teasing from
+   * someone the character likes is closer to fluster than irritation; warmth
+   * from a stranger is closer to surprise than delight.
+   */
+  function softenForRelationship(behaviour) {
+    const close = warm();
+    if (behaviour === "annoyed" && close && Math.random() < 0.45) return "embarrassed";
+    if (behaviour === "embarrassed" && !close) return "surprised";
+    if (behaviour === "happy" && !close && Math.random() < 0.5) return "curious";
+    // A character already out of patience escalates rather than repeating.
+    if (behaviour === "annoyed" && CHARACTER.mood.current === "annoyed" &&
+        CHARACTER.mood.intensity > 0.6) return "angry";
+    return behaviour;
+  }
+
+  /** Called from submitText, before the provider is asked anything. */
+  function reactToUserMessage(text, signalKinds) {
+    const name = pickReaction(text, signalKinds);
+    if (!name) return null;
+    return play(name);
+  }
+
+  /**
+   * Called once the model's emotion has been resolved and committed. The
+   * expression is already on screen by then; this adds the movement that goes
+   * with it and schedules the drift back to idle.
+   */
+  function reactToReply(mood) {
+    const name = EXPRESSION_BEHAVIOUR[mood] || "settle";
+    const result = play(name, { commit: true });
+    if (settleTimer) window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(function () {
+      settleTimer = null;
+      if (!state.busy) play("settle");
+    }, 2600);
+    return result;
+  }
+
+  /**
+   * Poking. Free, silent, and different each time: repeated jabs wear the
+   * character's patience down, and where it lands depends on how it currently
+   * feels and how well it knows the person doing it.
+   */
+  function poke() {
+    const now = Date.now();
+    pokeStreak = (now - lastPokeAt < 4000) ? pokeStreak + 1 : 0;
+    lastPokeAt = now;
+
+    const mood = CHARACTER.mood.current;
+    const close = warm();
+    let expression;
+
+    if (pokeStreak >= 3) {
+      expression = "annoyed";                       // stop that
+    } else if (mood === "sleepy") {
+      expression = pokeStreak ? "annoyed" : "surprised";
+    } else if (mood === "angry" || mood === "annoyed") {
+      expression = "annoyed";
+    } else if (close) {
+      expression = Math.random() < 0.5 ? "happy" : "embarrassed";
+    } else {
+      expression = Math.random() < 0.6 ? "surprised" : "annoyed";
+    }
+
+    // Flinching away is a movement, never a reposition: the anchor stays put.
+    if (expression === "annoyed" || expression === "surprised") {
+      Stage.nudge((Math.random() < 0.5 ? -1 : 1) * (14 + pokeStreak * 6));
+    }
+
+    const result = play("poke", { expression: expression, hold: 1100 });
+    sprites.react();
+    return Object.assign({ streak: pokeStreak }, result);
+  }
+
+  return {
+    play: play,
+    idleBeat: idleBeat,
+    poke: poke,
+    reactToUserMessage: reactToUserMessage,
+    reactToReply: reactToReply,
+    pickReaction: pickReaction,
+    names: function () { return Object.keys(BEHAVIOURS); },
+    recent: function () { return recent.slice(); },
+    resetPokeStreak: function () { pokeStreak = 0; lastPokeAt = 0; }
+  };
+}());
+
+/* =========================================================================
  * 13. PHONE / APP EVENT SYSTEM
  * =========================================================================
  * Everything so far only happens because the user typed something. This layer
@@ -5136,10 +5506,15 @@ const EventReactions = (function () {
     return true;
   }
 
-  /** Change the face only. Silent, costs nothing, allowed while hidden. */
-  function shift(mood) {
+  /**
+   * Change the face, with the movement that goes with it. Silent, free, and
+   * allowed while hidden — the whole point is that most events are worth a
+   * reaction but not a sentence.
+   */
+  function shift(mood, behaviour) {
     if (!isExpression(mood)) return false;
     sprites.set(commitMood(mood, false));
+    if (behaviour) Behaviour.play(behaviour, { commit: true });
     saveState();
     return true;
   }
@@ -5244,17 +5619,25 @@ const EventReactions = (function () {
   function handle(event) {
     switch (event.type) {
       case EVENT_TYPES.USER_INTERACTION:
+        // Stirring after a lull gets a glance. Every other keystroke does not.
+        if (event.detail.endedIdle) {
+          Behaviour.play("greeting");
+          return { action: "gesture", behaviour: "greeting" };
+        }
+        return { action: "none" };
+
       case EVENT_TYPES.APP_BACKGROUNDED:
         return { action: "none" };
 
       case EVENT_TYPES.TIME_PERIOD_CHANGED:
         // Ambient: the face drifts with the hour, silently.
-        if (event.detail.to === "night") return { action: shift("sleepy") ? "shift" : "none", mood: "sleepy" };
-        if (event.detail.to === "morning") return { action: shift("neutral") ? "shift" : "none", mood: "neutral" };
+        if (event.detail.to === "night") return { action: shift("sleepy", "sleepy") ? "shift" : "none", mood: "sleepy" };
+        if (event.detail.to === "morning") return { action: shift("neutral", "greeting") ? "shift" : "none", mood: "neutral" };
         return { action: "none" };
 
       case EVENT_TYPES.CHARGING_STARTED:
-        return { action: shift("happy") ? "shift" : "none", mood: "happy" };
+        // Comfortable rather than delighted: plugged in is a settling, not news.
+        return { action: shift("happy", "settle") ? "shift" : "none", mood: "happy" };
 
       case EVENT_TYPES.CHARGING_STOPPED:
         return { action: "none" };
@@ -5268,7 +5651,10 @@ const EventReactions = (function () {
 
       case EVENT_TYPES.USER_RETURNED: {
         const away = event.detail.awayMs || 0;
-        if (!maySpeak()) return { action: "suppressed" };
+        // Looking up when someone walks back in is free and happens whether or
+        // not the character has anything to say about it.
+        Behaviour.play(away >= EVENT_TUNING.shortAwayMs ? "greeting" : "curious");
+        if (!maySpeak()) return { action: "noticed" };
 
         // The one event allowed to reach the model, and only after a real
         // absence with a conversation worth resuming.
@@ -5393,7 +5779,9 @@ window.__companion = {
   resolveExpression: resolveExpression, spriteCandidates: spriteCandidates,
   applyInteraction: applyInteraction, blendMood: blendMood, commitMood: commitMood,
   decayMood: decayMood, moodStateLine: moodStateLine,
-  STAGE_DEFAULTS: STAGE_DEFAULTS, STAGE_GESTURES: STAGE_GESTURES
+  STAGE_DEFAULTS: STAGE_DEFAULTS, STAGE_GESTURES: STAGE_GESTURES,
+  Behaviour: Behaviour, BEHAVIOURS: BEHAVIOURS,
+  STANCE_BEHAVIOUR: STANCE_BEHAVIOUR, SIGNAL_BEHAVIOUR: SIGNAL_BEHAVIOUR
 };
 
 (function boot() {
@@ -5440,6 +5828,7 @@ window.__companion = {
   EventManager.subscribe(EventReactions.handle);
   EventSources.start({ returning: hadConversation });
   Stage.startLife();
+  if (hadConversation) Behaviour.play("greeting");
 }());
 
 /* Register service worker for PWA offline support */
