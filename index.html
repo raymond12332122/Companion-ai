@@ -1111,6 +1111,10 @@ const AI_CONFIG = {
   // the provider abstraction stays intact.
   presencePenalty: 0.4,
   frequencyPenalty: 0.35,
+  // Ask the provider to constrain decoding to a JSON object. The reply is a
+  // {response, emotion} pair, and free-running models drift out of that shape
+  // as the conversation grows. Ignored by providers that don't support it.
+  jsonMode: true,
   timeoutMs: 30000,
   historyTurns: 20,           // how many past messages get sent as context
   fallbackToLocal: true       // if the request fails, answer with the offline brain
@@ -1546,10 +1550,12 @@ function personaPrompt(profileOverride) {
   UNIVERSAL_RULES.forEach(function (rule) { lines.push("- " + rule); });
   lines.push("");
 
+  lines.push(moodStateLine());
   lines.push(
-    "Current mood: " + CHARACTER.mood.current + " (" +
-    (moodDescription(CHARACTER.mood.current)) + "). Let this color your tone " +
-    "without announcing it outright — don't say \"I'm feeling angry\", just be terser if you are."
+    "That is where you are coming into this turn from, not where you have to stay. Let it colour your tone " +
+    "without announcing it — don't say \"I'm feeling angry\", just be terser if you are. Set the emotion field " +
+    "to match the reply you actually just wrote: if nothing in this turn sustains the mood above, let it settle " +
+    "back toward neutral rather than repeating it out of habit."
   );
   lines.push("");
   lines.push(relationshipLine());
@@ -1560,15 +1566,57 @@ function personaPrompt(profileOverride) {
     "and never comment on the act of remembering."
   );
   lines.push("");
-  lines.push("Output format: end EVERY reply with a mood tag on the same line, one of:");
-  lines.push(ACTIVE_EXPRESSIONS.map(function (m) { return "[[mood:" + m + "]]"; }).join(" "));
-  lines.push("The tag is your facial expression and updates the sprite shown to the user. Nothing comes after the tag.");
+  // Structured output: what the character says and what its face does are two
+  // different things, so they travel as two fields instead of a tag glued to
+  // the end of the prose. "emotion" drives the sprite the user sees, and is
+  // constrained to the expressions the sprite system already knows about.
+  lines.push("OUTPUT FORMAT — reply with one JSON object and absolutely nothing else:");
+  lines.push('{"response": "<what you say, in character>", "emotion": "<one value from the list below>"}');
+  lines.push("");
+  lines.push("emotion must be exactly one of: " + ACTIVE_EXPRESSIONS.join(", ") + ".");
+  lines.push(
+    "It is your facial expression and changes the picture of you the user is looking at, so pick the one that " +
+    "actually matches what you just said. Put no stage directions, asterisks, or descriptions of your own face " +
+    "inside \"response\" — the expression field covers that."
+  );
+  lines.push("No markdown code fences. No text before or after the JSON object.");
   return lines.join("\n");
 }
 
 function moodDescription(mood) {
   if (MOOD_DESCRIPTIONS[mood]) return MOOD_DESCRIPTIONS[mood];
   return "feeling " + String(mood).replace(/_/g, " ");
+}
+
+/**
+ * How the current mood is reported to the model. Intensity is included
+ * because "annoyed" and "faintly annoyed, nearly over it" should not produce
+ * the same reply — and because stating a mood flatly turn after turn invites
+ * the model to simply echo it back, which locks the character's face.
+ */
+function moodStateLine() {
+  const mood = CHARACTER.mood;
+  const strength = mood.intensity >= 0.7 ? "strongly"
+    : mood.intensity >= 0.4 ? "moderately"
+    : "faintly, and it is nearly worn off";
+  return "Current mood: " + mood.current + " — " + moodDescription(mood.current) +
+    ". You are holding it " + strength + ".";
+}
+
+/**
+ * Moods fade when nothing renews them. Applied once per exchange, before the
+ * prompt is built, so the model is told about a mood that has already
+ * softened rather than one presented at full strength forever. Without this
+ * the mood reported in the prompt and the mood chosen by the model reinforce
+ * each other and the character never returns to neutral.
+ */
+function decayMood() {
+  const mood = CHARACTER.mood;
+  mood.intensity = Math.max(0, mood.intensity - 0.12);
+  if (mood.intensity <= 0 && mood.current !== "neutral") {
+    mood.current = "neutral";
+  }
+  return mood.current;
 }
 
 /**
@@ -1589,6 +1637,32 @@ function blendMood(nextMood) {
     mood.intensity = 0.4;
   } else {
     mood.intensity = Math.max(0, mood.intensity - 0.3);
+  }
+  return mood.current;
+}
+
+/**
+ * Commit an expression to the character's mood state.
+ *
+ * blendMood's inertia exists to damp *inference* — guessMood reads keywords
+ * and is noisy enough that one sharp word shouldn't flip the character's
+ * face. A model that fills in the "emotion" field has instead made a
+ * deliberate choice about its own expression, and damping that for two turns
+ * shows the user a face that contradicts the words next to it. So an explicit
+ * emotion lands immediately; an inferred one still goes through blendMood.
+ *
+ * Repetition still builds intensity either way, so a sustained mood remains a
+ * stronger state than a passing one.
+ */
+function commitMood(nextMood, explicit) {
+  if (!explicit) return blendMood(nextMood);
+
+  const mood = CHARACTER.mood;
+  if (nextMood === mood.current) {
+    mood.intensity = Math.min(1, mood.intensity + 0.25);
+  } else {
+    mood.current = nextMood;
+    mood.intensity = 0.45;
   }
   return mood.current;
 }
@@ -2577,17 +2651,24 @@ function renderMessage(message, options) {
     bubble.appendChild(meta);
   }
 
-  if (message.error && message.retryText) {
+  // Offered on error bubbles and on the "backend failed, answered offline"
+  // notice alike, so a transient API failure is always one tap from a real
+  // answer rather than something the user has to retype their way out of.
+  if (message.retryText) {
     const retry = document.createElement("button");
     retry.type = "button";
     retry.className = "retry-btn";
     retry.textContent = "Try again";
     retry.addEventListener("click", function () {
-      row.remove();
-      state.messages = state.messages.filter(function (m) { return m.id !== message.id; });
+      // Drop this message and everything after it: on the fallback path the
+      // offline reply sits below the notice, and leaving it there would show
+      // two answers to one question.
+      const index = state.messages.findIndex(function (m) { return m.id === message.id; });
+      if (index !== -1) state.messages = state.messages.slice(0, index);
+      renderAll();
       saveState();
       updateSidebar();
-      askCompanion(message.retryText);
+      askCompanion(message.retryText, null, { retry: true });
     });
     bubble.appendChild(retry);
   }
@@ -3025,7 +3106,8 @@ async function callProvider(userText) {
       maxTokens: AI_CONFIG.maxTokens,
       temperature: AI_CONFIG.temperature,
       presencePenalty: AI_CONFIG.presencePenalty,
-      frequencyPenalty: AI_CONFIG.frequencyPenalty
+      frequencyPenalty: AI_CONFIG.frequencyPenalty,
+      jsonMode: AI_CONFIG.jsonMode === true
     };
     // Omitted unless explicitly overridden, so the server's own model stands.
     if (AI_CONFIG.model) body.model = AI_CONFIG.model;
@@ -3124,26 +3206,90 @@ function scrubAssistantVoice(raw) {
   return out || original;
 }
 
-function parseReply(raw) {
-  let text = String(raw == null ? "" : raw).trim();
-  let mood = null;
-  const tag = /\[\[\s*mood\s*:\s*(\w+)\s*\]\]/i.exec(text);
-  if (tag) {
-    if (isExpression(tag[1].toLowerCase())) mood = tag[1].toLowerCase();
-    text = text.replace(/\[\[\s*mood\s*:\s*\w+\s*\]\]/gi, "").trim();
+/**
+ * Pull the {response, emotion} object out of a completion.
+ *
+ * Models wrap JSON in prose or code fences often enough that a bare
+ * JSON.parse throws away perfectly good replies, so this scans for the
+ * outermost balanced object instead. Returns null when there isn't one, and
+ * the caller falls back to reading the whole completion as prose.
+ */
+function extractStructuredReply(raw) {
+  const text = String(raw == null ? "" : raw);
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text.charAt(i);
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\") { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        let parsed = null;
+        try { parsed = JSON.parse(text.slice(start, i + 1)); } catch (err) { return null; }
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+        // Accept the documented field names and the obvious near-misses a
+        // model reaches for; anything else is treated as not-structured.
+        const body = parsed.response || parsed.reply || parsed.text || parsed.message;
+        if (typeof body !== "string") return null;
+        const emotion = parsed.emotion || parsed.mood || parsed.expression;
+        return { text: body, emotion: typeof emotion === "string" ? emotion.toLowerCase().trim() : null };
+      }
+    }
   }
+  return null;
+}
+
+function parseReply(raw) {
+  const structured = extractStructuredReply(raw);
+  let text;
+  let mood = null;
+
+  if (structured) {
+    text = structured.text.trim();
+    // The sprite system is the authority on which expressions exist; an
+    // emotion it doesn't recognise is dropped rather than shown.
+    if (structured.emotion && isExpression(structured.emotion)) mood = structured.emotion;
+  } else {
+    // Prose fallback, including the older [[mood:x]] tag contract. Kept so a
+    // model that ignores the JSON instruction still produces a usable reply
+    // with a usable expression.
+    text = String(raw == null ? "" : raw).trim();
+    const tag = /\[\[\s*mood\s*:\s*(\w+)\s*\]\]/i.exec(text);
+    if (tag) {
+      if (isExpression(tag[1].toLowerCase())) mood = tag[1].toLowerCase();
+      text = text.replace(/\[\[\s*mood\s*:\s*\w+\s*\]\]/gi, "").trim();
+    }
+  }
+
   text = scrubAssistantVoice(text);
-  return { text: text, mood: mood || guessMood(text) };
+
+  // A reply whose entire body is an expression name means the model filled the
+  // wrong field — "Angry" is not something the character said. Treated as no
+  // reply at all so it takes the empty-response path instead of being shown.
+  const bare = text.toLowerCase().replace(/[^a-z_]/g, "");
+  if (bare && isExpression(bare)) text = "";
+
+  return { text: text, mood: mood || guessMood(text), explicit: Boolean(mood) };
 }
 
 const FRIENDLY_ERRORS = {
   timeout: "That took way too long and I bailed on it. Want me to try again?",
   network: "I can't reach my brain right now — looks like the connection dropped.",
-  auth: "The AI backend rejected my credentials. Someone needs to check the API key on the server.",
+  auth: "The AI service turned me away — its credentials need checking on the server.",
   http: "The AI service threw an error at me.",
   parse: "I got a reply but it was gibberish I couldn't parse.",
   empty: "…I completely blanked. Nothing came back. Give me another shot?",
-  config: "I'm not wired up to an AI provider yet — check AI_CONFIG in index.html."
+  config: "I'm not wired up to an AI provider yet."
 };
 
 /* =========================================================================
@@ -3450,8 +3596,19 @@ function capitalise(str) {
 /* =========================================================================
  * 10. CONVERSATION FLOW
  * ========================================================================= */
-async function askCompanion(userText, relationshipEventKinds) {
+async function askCompanion(userText, relationshipEventKinds, options) {
   if (state.busy) return;
+  const opts = options || {};
+
+  // A failed request parks the session on the offline brain so the next few
+  // turns don't each pay a timeout. "Try again" is the user explicitly asking
+  // for the backend, so it lifts that parking rather than replaying offline.
+  if (opts.retry && AI_CONFIG.provider !== "local") state.transport = "remote";
+
+  // Fade the standing mood before the prompt is composed, so what the model
+  // is told reflects a mood that has had a turn to cool.
+  decayMood();
+
   setBusy(true);
   setTyping(true);
   sprites.set("thinking");
@@ -3485,10 +3642,13 @@ async function askCompanion(userText, relationshipEventKinds) {
 
   if (failure) {
     const friendly = FRIENDLY_ERRORS[failure.kind] || FRIENDLY_ERRORS.network;
+    // Technical detail goes to the console, not the transcript: upstream error
+    // text is backend information and has no meaning to the person chatting.
+    console.warn("[companion] provider request failed:", failure.kind, failure.message);
     if (AI_CONFIG.fallbackToLocal) {
       const backup = localBrain(userText);
-      pushMessage("system", friendly + " (Falling back to my offline brain — details: " + failure.message + ")");
-      sprites.set(blendMood(resolveExpression(backup.mood, relationshipEventKinds)));
+      pushMessage("system", friendly + " I answered from my offline brain instead.", { retryText: userText });
+      sprites.set(commitMood(resolveExpression(backup.mood, relationshipEventKinds), false));
       pushMessage("bot", backup.text, { mood: backup.mood });
       setStatus("error", "AI backend unavailable — offline brain");
       state.transport = "local";
@@ -3500,7 +3660,7 @@ async function askCompanion(userText, relationshipEventKinds) {
     return;
   }
 
-  sprites.set(blendMood(resolveExpression(reply.mood, relationshipEventKinds)));
+  sprites.set(commitMood(resolveExpression(reply.mood, relationshipEventKinds), reply.explicit));
   pushMessage("bot", reply.text, { mood: reply.mood });
   setBusy(false);
 }
@@ -3575,12 +3735,27 @@ async function detectBackend() {
     const response = await fetch(healthUrl, { method: "GET" });
     if (!response.ok) throw new Error("health " + response.status);
     const data = await response.json();
-    if (data && data.configured) {
+    if (data && data.ready !== false && data.configured) {
       state.transport = "remote";
-      setStatus("online", "Connected · " + (data.provider || "proxy") + " / " + (data.model || AI_CONFIG.model));
+      setStatus("online", "Connected · " + (data.provider || "proxy") + " / " + (data.model || "model from server"));
+      return;
+    }
+
+    state.transport = "local";
+    // The server reports which variables it needs. Passing that through
+    // verbatim is the difference between "it doesn't work" and a fix — it
+    // names variables only, never values, so nothing sensitive is shown.
+    const missing = Array.isArray(data && data.missingEnv) ? data.missingEnv : [];
+    if (missing.length) {
+      setStatus("local", "Backend not configured — offline brain");
+      pushMessage("system",
+        "The AI backend isn't configured yet, so I'm running on my offline brain. " +
+        "Set " + missing.join(" and ") + " in the server environment, then restart it.");
+    } else if (data && data.message) {
+      setStatus("local", "Backend not configured — offline brain");
+      pushMessage("system", data.message + " Running on the offline brain until then.");
     } else {
-      state.transport = "local";
-      setStatus("local", "Proxy running, no API key — offline brain");
+      setStatus("local", "Proxy running, not configured — offline brain");
     }
   } catch (err) {
     state.transport = "local";
@@ -4209,9 +4384,11 @@ window.__companion = {
   personaPrompt: personaPrompt, systemPrompt: systemPrompt,
   readStance: readStance, isCurtMessage: isCurtMessage, stanceBlock: stanceBlock,
   scrubAssistantVoice: scrubAssistantVoice, parseReply: parseReply,
+  extractStructuredReply: extractStructuredReply,
   localBrain: localBrain, guessMood: guessMood,
   resolveExpression: resolveExpression, spriteCandidates: spriteCandidates,
-  applyInteraction: applyInteraction, blendMood: blendMood
+  applyInteraction: applyInteraction, blendMood: blendMood, commitMood: commitMood,
+  decayMood: decayMood, moodStateLine: moodStateLine
 };
 
 (function boot() {

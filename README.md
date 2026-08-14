@@ -35,14 +35,22 @@ const AI_CONFIG = {
   provider: "proxy",       // "proxy" | "anthropic" | "openai" | "local"
   apiUrl: "/api/chat",
   apiKey: "",              // keep empty — see below
-  model: "claude-opus-5",
+  model: "",               // blank: the proxy's COMPANION_MODEL wins
   maxTokens: 320,
-  temperature: 0.85,
+  temperature: 0.9,
+  presencePenalty: 0.4,
+  frequencyPenalty: 0.35,
+  jsonMode: true,          // ask for a {response, emotion} object
   timeoutMs: 30000,
   historyTurns: 20,
   fallbackToLocal: true
 };
 ```
+
+`model` is deliberately blank. With the `proxy` provider the server owns the model
+name, because the server is the side that knows which models its configured
+endpoint actually serves. Setting a name here overrides that and is only useful
+for the direct `anthropic` / `openai` providers.
 
 **About the API key.** Anything in `AI_CONFIG.apiKey` ships to every visitor's
 browser and is trivially readable, so the default `proxy` provider never puts a key
@@ -52,25 +60,72 @@ browser only ever talks to `/api/chat` on your own origin. The `anthropic` and
 experiments, unsafe for anything you deploy. Choosing them with a key set logs a
 console warning and labels the status pill accordingly.
 
-The proxy speaks two upstream formats, selected by `COMPANION_PROVIDER`:
+### Providers
 
-| Value | Upstream | Default endpoint |
+The proxy holds a registry of providers, selected by `COMPANION_PROVIDER`. The
+companion itself never names a vendor — it posts to `/api/chat` and the registry
+decides who answers.
+
+| `COMPANION_PROVIDER` | Upstream | Status | Default endpoint |
+| --- | --- | --- | --- |
+| `nvidia` | NVIDIA NIM (OpenAI-compatible) | **implemented, default** | `https://integrate.api.nvidia.com/v1/chat/completions` |
+| `openai` | any OpenAI-compatible chat API | implemented | `https://api.openai.com/v1/chat/completions` |
+| `anthropic` | Anthropic Messages API | implemented | `https://api.anthropic.com/v1/messages` |
+| `gemini` | Google Gemini | reserved, not implemented | — |
+| `local` | on-device model | reserved, not implemented | — |
+
+Every implemented provider requires both `COMPANION_API_KEY` and `COMPANION_MODEL`.
+No model name is defaulted: a guessed name is a name the configured endpoint has
+never heard of, and the resulting 404 looks like a network fault. When something is
+missing, `GET /api/health` names the exact variables to set and the app says so in
+the chat rather than failing silently.
+
+`COMPANION_API_URL` overrides the endpoint for a gateway or self-hosted model.
+
+Adding a vendor that speaks an existing wire format is a registry entry and no new
+code; `gemini` is listed separately because its request shape is neither of the two
+wires and needs its own adapter.
+
+### Environment variables
+
+| Variable | Required | Purpose |
 | --- | --- | --- |
-| `anthropic` | Anthropic Messages API | `https://api.anthropic.com/v1/messages` |
-| `openai` | any OpenAI-compatible chat API | `https://api.openai.com/v1/chat/completions` |
+| `COMPANION_PROVIDER` | no (defaults to `nvidia`) | which registry entry to use |
+| `COMPANION_API_KEY` | **yes** | credential; read only from the environment, never sent to the browser |
+| `COMPANION_MODEL` | **yes** | model id, e.g. `meta/llama-3.1-8b-instruct` |
+| `COMPANION_API_URL` | no | override the provider's default endpoint |
+| `COMPANION_MAX_TOKENS` | no (400) | upper bound on reply length |
+| `PORT` | no (8080) | listen port |
 
-Point `COMPANION_API_URL` somewhere else for a gateway or self-hosted model.
+For NVIDIA, create a key at [build.nvidia.com](https://build.nvidia.com) and pick a
+model id from its catalogue.
 
 ### Backend endpoints
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/health` | `{ configured, provider, model }` — the page uses this to pick its mode |
-| `POST /api/chat` | `{ system, messages, model, maxTokens, temperature }` → `{ reply }` |
+| `GET /api/health` | `{ ready, provider, model, reason, missingEnv, providers }` — the page uses this to pick its mode and to report missing configuration |
+| `POST /api/chat` | `{ system, messages, maxTokens, temperature, jsonMode, … }` → `{ reply }` |
 | `GET /*` | static files from the repository root |
 
 The proxy caps request bodies, clamps `maxTokens`, blocks path traversal, and never
-echoes upstream payloads or the key back to the browser.
+echoes upstream payloads or the key back to the browser. Every string that reaches
+a log line or a response body passes through a redaction step that removes the
+configured key and anything shaped like a credential.
+
+### Reply format
+
+The model is asked for a single JSON object:
+
+```json
+{"response": "what the character says", "emotion": "annoyed"}
+```
+
+`emotion` must be one of the expressions the sprite system already knows about
+(the ten base expressions plus any the character's author added), and it selects
+the sprite on the stage. Replies that arrive as plain prose — or with the older
+`[[mood:x]]` tag — are still parsed, and an unrecognised emotion is dropped rather
+than shown.
 
 ## Memory
 
