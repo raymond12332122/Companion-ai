@@ -55,6 +55,11 @@ function createMockGemmaProvider(opts) {
   const replies = options.replies || CANNED_REPLIES;
   const modelId = options.modelId || "mock-gemma3-1b-it-int4.task";
   const sizeBytes = typeof options.sizeBytes === "number" ? options.sizeBytes : 529 * 1024 * 1024;
+  // Deterministic, obviously-fake — never confuse this with a real hash of
+  // an actual model file. Real SHA-256 computation only happens natively,
+  // over the real file, in GemmaModelStore.sha256().
+  const sha256 = options.sha256 || "0000000000000000000000000000000000000000000000000000000000mock";
+  const runtimeVersion = options.runtimeVersion || "mock-runtime";
 
   let loaded = false;
   let generating = false;
@@ -99,6 +104,23 @@ function createMockGemmaProvider(opts) {
         sizeBytes: sizeBytes,
         backend: loaded ? "cpu" : null,
         modelPath: "/mock/files/gemma/model.task",
+        engineInitialized: loaded
+      };
+    },
+
+    // Mirrors GemmaPlugin.kt#getModelDiagnostics — same field names/shapes,
+    // so app code that calls DeviceGemma.getModelDiagnostics() exercises the
+    // real call site against this mock instead of a reimplementation of it.
+    async getModelDiagnostics() {
+      const hasModel = mode !== "model_unavailable" && mode !== "provider_unavailable";
+      return {
+        modelFilename: hasModel ? modelId : null,
+        sizeBytes: hasModel ? sizeBytes : 0,
+        sha256: hasModel ? sha256 : null,
+        modelPath: hasModel ? "/mock/files/gemma/model.task" : null,
+        runtimeVersion: runtimeVersion,
+        backend: loaded ? "cpu" : null,
+        modelLoaded: loaded,
         engineInitialized: loaded
       };
     },

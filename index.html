@@ -1849,6 +1849,44 @@ async function runGemmaMinimalTest(text) {
   }
 }
 
+/**
+ * TEMP DEBUG — the "/gemma-diagnostics" slash command. Calls
+ * DeviceGemma.getModelDiagnostics() (GemmaPlugin.kt) directly: model
+ * filename, size, SHA-256, path, runtime version, backend, loaded/
+ * engine-initialized state. Never exposes model contents — only metadata
+ * already surfaced by the native side. Distinct from GemmaDebug (which
+ * reports one message's execution path); this reports the model file
+ * itself, independent of whether any message has been sent yet.
+ */
+async function runGemmaDiagnosticsReport() {
+  if (!DeviceGemma) {
+    pushMessage("system", "[Gemma diagnostics] DeviceGemma bridge not available — not running in the Android app, or the plugin didn't register.");
+    return;
+  }
+  if (typeof DeviceGemma.getModelDiagnostics !== "function") {
+    pushMessage("system", "[Gemma diagnostics] This plugin build doesn't expose getModelDiagnostics() yet.");
+    return;
+  }
+  try {
+    const d = await DeviceGemma.getModelDiagnostics();
+    const lines = [
+      "[Gemma diagnostics] real-model report:",
+      "Model filename: " + (d.modelFilename || "(no model imported)"),
+      "Model size: " + (typeof d.sizeBytes === "number" && d.sizeBytes > 0 ? (d.sizeBytes / 1048576).toFixed(1) + " MB" : "?"),
+      "SHA-256: " + (d.sha256 || "?"),
+      "Model path: " + (d.modelPath || "?"),
+      "Runtime version: " + (d.runtimeVersion || "?"),
+      "Backend: " + (d.backend || "?"),
+      "Model loaded: " + (d.modelLoaded ? "YES" : "NO"),
+      "Inference engine initialized: " + (d.engineInitialized ? "YES" : "NO")
+    ];
+    pushMessage("system", lines.join("\n"));
+  } catch (err) {
+    pushMessage("system", "[Gemma diagnostics] FAILED — " +
+      (err && err.kind ? err.kind + ": " : "") + (err && err.message ? err.message : String(err)));
+  }
+}
+
 /* =========================================================================
  * 2. CHARACTER DEFINITION
  * ========================================================================= */
@@ -3911,6 +3949,16 @@ function runCommand(raw) {
     pushMessage("system", "Running minimal Gemma test — no personality, no memory, no history, no relationship, no event context. Just " +
       JSON.stringify(customText || "Say hello in one short sentence.") + " with an empty system prompt.");
     runGemmaMinimalTest(customText);
+    return true;
+  }
+
+  // TEMP DEBUG — the real-device diagnostic report: model filename, size,
+  // SHA-256, path, runtime version, backend, loaded/engine-initialized
+  // state. Never exposes model contents. See
+  // GemmaPlugin.kt#getModelDiagnostics — this is the JS side that was
+  // missing: the native method existed but nothing called it.
+  if (command === "/gemma-diagnostics") {
+    runGemmaDiagnosticsReport();
     return true;
   }
 

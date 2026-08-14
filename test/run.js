@@ -296,6 +296,44 @@ test("performance instrumentation: generate() result carries numeric timing/toke
 });
 
 // ---------------------------------------------------------------------
+// Real-model diagnostic report (/gemma-diagnostics -> getModelDiagnostics())
+// ---------------------------------------------------------------------
+
+test("diagnostics report: /gemma-diagnostics prints model metadata via the real call site", async () => {
+  const { sandbox, mock } = setup({ sha256: "deadbeef".repeat(8), runtimeVersion: "com.google.mediapipe:tasks-genai:0.10.35" });
+  await mock.loadModel();
+  const before = sandbox.__companion.state.messages.length;
+  // runCommand() is synchronous and fires runGemmaDiagnosticsReport()
+  // without awaiting it (matching /gemma-minimal-test's existing pattern),
+  // so calling the async function directly is what actually lets this test
+  // wait for the message to be pushed before asserting on it.
+  await sandbox.runGemmaDiagnosticsReport();
+  const msg = sandbox.__companion.state.messages.slice(before)[0];
+  assert.ok(msg, "expected a system message with the diagnostic report");
+  assert.ok(msg.text.includes("[Gemma diagnostics]"));
+  assert.ok(msg.text.includes("deadbeef"), "SHA-256 from getModelDiagnostics() should appear in the report");
+  assert.ok(msg.text.includes("tasks-genai:0.10.35"), "runtime version should appear in the report");
+  assert.ok(msg.text.includes("Model loaded: YES"));
+});
+
+test("diagnostics report: with no plugin at all, reports unavailable instead of throwing", async () => {
+  const sandbox = loadApp({ silent: true }); // no mockGemma
+  const before = sandbox.__companion.state.messages.length;
+  await sandbox.runGemmaDiagnosticsReport(); // must not throw
+  const msg = sandbox.__companion.state.messages.slice(before)[0];
+  assert.ok(msg && msg.text.includes("not available"), "should report the bridge is unavailable, not crash");
+});
+
+test("diagnostics report: /gemma-diagnostics is actually wired into runCommand()", () => {
+  const { sandbox } = setup();
+  // Doesn't await the async work (matches real UI behavior — runCommand()
+  // is synchronous); just confirms the command is recognized and dispatches
+  // rather than falling through to "I don't know /gemma-diagnostics".
+  const handled = sandbox.runCommand("/gemma-diagnostics");
+  assert.strictEqual(handled, true, "runCommand() must recognize /gemma-diagnostics");
+});
+
+// ---------------------------------------------------------------------
 // Persistence / reload
 // ---------------------------------------------------------------------
 
