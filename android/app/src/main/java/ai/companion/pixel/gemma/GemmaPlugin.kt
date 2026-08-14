@@ -251,7 +251,7 @@ class GemmaPlugin : Plugin() {
 
     /**
      * options: { system: string, messages: [{role, content}], maxTokens?, temperature? }
-     * resolves: { response: string, emotion: string | null }
+     * resolves: { response: string, emotion: string | null, ...TEMP DEBUG timing/rawOutput fields }
      */
     @PluginMethod
     fun generate(call: PluginCall) {
@@ -276,20 +276,27 @@ class GemmaPlugin : Plugin() {
             temperature = (call.getDouble("temperature") ?: 0.85).toFloat()
         )
 
-        val raw = StringBuilder()
+        val streamed = StringBuilder()
         engine.generate(context, request, object : GemmaEngine.Callback {
             override fun onToken(token: String) {
-                raw.append(token)
+                streamed.append(token)
                 notifyListeners("gemmaToken", JSObject().apply {
                     put("token", token)
-                    put("partial", GemmaReply.partialResponse(raw.toString()))
+                    put("partial", GemmaReply.partialResponse(streamed.toString()))
                 })
             }
 
-            override fun onComplete(response: String, emotion: String?) {
+            override fun onComplete(response: String, emotion: String?, timing: GemmaTiming) {
                 call.resolve(JSObject().apply {
                     put("response", response)
                     put("emotion", emotion)
+                    // TEMP DEBUG — everything below, for the execution-path report.
+                    put("modelLoadMs", timing.modelLoadMs)
+                    put("promptPrepMs", timing.promptPrepMs)
+                    put("inferenceMs", timing.inferenceMs)
+                    put("responseProcessingMs", timing.responseProcessingMs)
+                    put("rawOutput", timing.rawOutput.take(4000))
+                    put("nativeCompletedAtMs", System.currentTimeMillis())
                 })
             }
 

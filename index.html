@@ -1654,10 +1654,21 @@ const GemmaDebug = {
     this.inferenceCompleted = false;
     this.fallbackTriggered = false;
     this.fallbackReason = null;
-    this.durationMs = null;
+    this.durationMs = null;       // total time inside the gemma branch (JS-measured, includes bridge overhead)
+    this.rawOutput = null;        // model's text before trim/JSON/mood-tag extraction, from the native side
+    // Per-stage timing, all native-measured (System.currentTimeMillis() on
+    // the worker thread) except nativeToJsMs, which is JS-measured as the
+    // gap between the native side's completion timestamp and receipt here —
+    // i.e. Capacitor bridge + WebView round-trip overhead specifically.
+    this.modelLoadMs = null;
+    this.promptPrepMs = null;
+    this.inferenceMs = null;
+    this.responseProcessingMs = null;
+    this.nativeToJsMs = null;
   },
   summary: function () {
     const yn = function (v) { return v === null ? "?" : (v ? "YES" : "NO"); };
+    const ms = function (v) { return v === null || v === undefined ? "?" : v + " ms"; };
     const lines = [
       "[Gemma debug] active provider: " + this.provider,
       "Gemma model loaded: " + yn(this.modelLoaded),
@@ -1666,7 +1677,17 @@ const GemmaDebug = {
       "Fallback triggered: " + yn(this.fallbackTriggered)
     ];
     if (this.fallbackTriggered) lines.push("Fallback reason: " + (this.fallbackReason || "(none recorded)"));
-    lines.push("Duration: " + (this.durationMs === null ? "?" : this.durationMs + " ms"));
+    lines.push("Total message latency: " + ms(this.durationMs));
+    if (this.inferenceCompleted) {
+      lines.push(
+        "  model load: " + ms(this.modelLoadMs) +
+        " · prompt prep: " + ms(this.promptPrepMs) +
+        " · inference: " + ms(this.inferenceMs) +
+        " · response processing: " + ms(this.responseProcessingMs) +
+        " · native→JS transfer: " + ms(this.nativeToJsMs)
+      );
+      lines.push("Raw native output: " + (this.rawOutput === null ? "?" : JSON.stringify(this.rawOutput)));
+    }
     return lines.join("\n");
   }
 };
@@ -4083,6 +4104,18 @@ async function callProvider(userText, options) {
         budget
       ]);
       GemmaDebug.inferenceCompleted = true; // TEMP DEBUG
+      // TEMP DEBUG — everything below is instrumentation only; none of it
+      // changes gemmaResult or the value this branch returns.
+      if (gemmaResult) {
+        GemmaDebug.modelLoadMs = gemmaResult.modelLoadMs;
+        GemmaDebug.promptPrepMs = gemmaResult.promptPrepMs;
+        GemmaDebug.inferenceMs = gemmaResult.inferenceMs;
+        GemmaDebug.responseProcessingMs = gemmaResult.responseProcessingMs;
+        GemmaDebug.rawOutput = gemmaResult.rawOutput;
+        if (typeof gemmaResult.nativeCompletedAtMs === "number") {
+          GemmaDebug.nativeToJsMs = Date.now() - gemmaResult.nativeCompletedAtMs;
+        }
+      }
     } catch (err) {
       GemmaDebug.durationMs = Date.now() - gemmaStarted; // TEMP DEBUG
       GemmaDebug.fallbackReason = "inference: " + (err && err.kind ? err.kind + " — " : "") +

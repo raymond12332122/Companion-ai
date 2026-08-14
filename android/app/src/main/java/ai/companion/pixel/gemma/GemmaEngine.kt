@@ -28,6 +28,20 @@ data class GemmaAvailability(
 data class GemmaLoadOutcome(val loaded: Boolean, val backend: String?, val error: String?, val loadMillis: Long)
 
 /**
+ * TEMP DEBUG — timing/raw-output breakdown for one generate() call, so a
+ * lag report can say which stage actually took the time instead of guessing.
+ * [rawOutput] is the model's text before trimAtGemmaStop/GemmaReply.extract
+ * touch it — exactly what the native engine produced, unedited.
+ */
+data class GemmaTiming(
+    val modelLoadMs: Long,
+    val promptPrepMs: Long,
+    val inferenceMs: Long,
+    val responseProcessingMs: Long,
+    val rawOutput: String
+)
+
+/**
  * On-device inference for a single Gemma `.task` bundle through MediaPipe's
  * LLM Inference API (the LiteRT-LM runtime for Android). This is a
  * self-contained sibling to [ai.companion.pixel.llm.MediaPipeLlmEngine], not
@@ -150,16 +164,27 @@ class GemmaEngine {
             return
         }
 
+        // Runs on `worker`, Executors.newSingleThreadExecutor's own dedicated
+        // background thread — this call returns to whatever thread invoked
+        // generate() immediately after submitting here, it does not block it.
+        // Capacitor's own Bridge.callPluginMethod() already posts every
+        // @PluginMethod call (including this one) onto its own taskHandler
+        // background thread before this method is even entered, so this
+        // second hop is deliberate isolation, not the first time the work
+        // leaves the caller — see GemmaPlugin.kt's threading note.
         worker.execute {
+            var modelLoadMs = 0L // TEMP DEBUG
             try {
                 if (inference == null) {
+                    val loadStart = System.currentTimeMillis() // TEMP DEBUG
                     val outcome = loadBlocking(app)
+                    modelLoadMs = System.currentTimeMillis() - loadStart // TEMP DEBUG
                     if (!outcome.loaded) {
                         callback.onError(outcome.error ?: "Model failed to load", "model_load_failed")
                         return@execute
                     }
                 }
-                generateBlocking(request, callback)
+                generateBlocking(request, callback, modelLoadMs)
             } catch (t: Throwable) {
                 Log.e(TAG, "Generation failed", t)
                 callback.onError(describe(t), "generation_failed")
@@ -170,13 +195,15 @@ class GemmaEngine {
     }
 
     /** Runs on [worker]. */
-    private fun generateBlocking(request: GemmaGenerateRequest, callback: Callback) {
+    private fun generateBlocking(request: GemmaGenerateRequest, callback: Callback, modelLoadMs: Long) {
         val engine = inference ?: run {
             callback.onError("No model is loaded", "not_loaded")
             return
         }
 
+        val promptStart = System.currentTimeMillis() // TEMP DEBUG
         val prompt = formatGemmaPrompt(request.system, request.messages)
+        val promptPrepMs = System.currentTimeMillis() - promptStart // TEMP DEBUG
 
         val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
             .setTopK(SESSION_TOP_K)
@@ -192,6 +219,7 @@ class GemmaEngine {
         try {
             active.addQueryChunk(prompt)
 
+            val inferenceStart = System.currentTimeMillis() // TEMP DEBUG
             val future = active.generateResponseAsync(ProgressListener<String> { partial, _ ->
                 if (!partial.isNullOrEmpty()) {
                     assembled.append(partial)
@@ -200,14 +228,22 @@ class GemmaEngine {
             })
 
             val returned = future.get() ?: ""
+            val inferenceMs = System.currentTimeMillis() - inferenceStart // TEMP DEBUG
             val raw = if (returned.length >= assembled.length) returned else assembled.toString()
+            // TEMP DEBUG — the model's actual output, logged before anything
+            // (stop-sequence trim, JSON/mood-tag extraction) touches it.
+            Log.i(TAG, "Raw Gemma output (${raw.length} chars): " + raw.take(2000))
 
+            val processingStart = System.currentTimeMillis() // TEMP DEBUG
             val trimmed = trimAtGemmaStop(raw)
             val parsed = GemmaReply.extract(trimmed)
+            val responseProcessingMs = System.currentTimeMillis() - processingStart // TEMP DEBUG
+
+            val timing = GemmaTiming(modelLoadMs, promptPrepMs, inferenceMs, responseProcessingMs, raw) // TEMP DEBUG
             if (parsed.response.isBlank()) {
                 callback.onError("The model returned an empty reply", "empty_reply")
             } else {
-                callback.onComplete(parsed.response, parsed.emotion)
+                callback.onComplete(parsed.response, parsed.emotion, timing)
             }
         } finally {
             session = null
@@ -295,7 +331,7 @@ class GemmaEngine {
 
     interface Callback {
         fun onToken(token: String)
-        fun onComplete(response: String, emotion: String?)
+        fun onComplete(response: String, emotion: String?, timing: GemmaTiming) // TEMP DEBUG: + timing
         fun onError(message: String, code: String)
     }
 }
