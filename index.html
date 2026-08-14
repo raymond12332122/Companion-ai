@@ -273,15 +273,42 @@
 
   .stage__panel {
     position: absolute; top: 48px; right: 8px; z-index: 3;
-    width: min(230px, calc(100% - 16px));
-    display: grid; gap: 10px;
+    width: min(252px, calc(100% - 16px));
+    /* The stage is short; the panel is allowed to scroll inside it rather than
+     * growing the stage or spilling over the conversation. */
+    max-height: calc(100% - 60px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: grid; gap: 14px;
     padding: 12px;
     border-radius: 14px;
     border: 1px solid var(--line);
-    background: rgba(9, 11, 26, .92);
+    background: rgba(9, 11, 26, .95);
     box-shadow: var(--shadow);
     backdrop-filter: blur(8px);
   }
+  .stage__group { display: grid; gap: 9px; }
+  .stage__group + .stage__group { border-top: 1px solid var(--line); padding-top: 12px; }
+  .stage__grouphead {
+    margin: 0;
+    font-size: .68rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .09em;
+    color: var(--accent);
+  }
+
+  .switch {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: .76rem; line-height: 1.35;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .switch input { flex: none; width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--accent); }
+  .switch input:disabled { opacity: .4; }
+  .switch input:disabled + span { opacity: .45; }
+
+  .ev-list { display: grid; gap: 7px; padding-left: 2px; }
+  .ev-list .switch { font-size: .74rem; color: var(--muted); }
+  .ev-list .switch span { color: var(--muted); }
   .stage__panel label { display: grid; gap: 6px; font-size: .74rem; color: var(--muted); }
   .stage__panel input[type="range"] { width: 100%; accent-color: var(--accent); height: 24px; }
   .stage__hint { margin: 0; font-size: .7rem; color: var(--muted); line-height: 1.45; }
@@ -903,12 +930,29 @@
       <button class="stage__toggle" id="stage-toggle" type="button"
               aria-expanded="false" aria-controls="stage-panel" title="Adjust the character">⚙</button>
       <div class="stage__panel" id="stage-panel" hidden>
-        <label for="stage-size">
-          Character size
-          <input type="range" id="stage-size" min="45" max="160" step="1" value="92">
-        </label>
-        <button class="stage__reset" id="stage-reset" type="button">Reset position &amp; size</button>
-        <p class="stage__hint">Drag the character to move it around the stage.</p>
+        <section class="stage__group">
+          <h3 class="stage__grouphead">Appearance</h3>
+          <label for="stage-size">
+            Character size
+            <input type="range" id="stage-size" min="45" max="160" step="1" value="92">
+          </label>
+          <button class="stage__reset" id="stage-reset" type="button">Reset position &amp; size</button>
+          <p class="stage__hint">Drag the character to move it around the stage.</p>
+        </section>
+
+        <section class="stage__group">
+          <h3 class="stage__grouphead">Reactions</h3>
+          <label class="switch">
+            <input type="checkbox" id="ev-master" checked>
+            <span>React to what's going on</span>
+          </label>
+          <div class="ev-list" id="ev-list"></div>
+          <label class="switch">
+            <input type="checkbox" id="ev-ai">
+            <span>Let the AI write the occasional reaction</span>
+          </label>
+          <p class="stage__hint" id="ev-note"></p>
+        </section>
       </div>
     </div>
 
@@ -2189,6 +2233,10 @@ const dom = {
   stagePanel: document.getElementById("stage-panel"),
   stageSize: document.getElementById("stage-size"),
   stageReset: document.getElementById("stage-reset"),
+  evMaster: document.getElementById("ev-master"),
+  evList: document.getElementById("ev-list"),
+  evAi: document.getElementById("ev-ai"),
+  evNote: document.getElementById("ev-note"),
   companionBadge: document.getElementById("companion-badge"),
   typingLabel: document.getElementById("typing-label"),
   moodLabel: document.getElementById("mood-label"),
@@ -3046,10 +3094,14 @@ function memoryBlock(queryText) {
   return relevant.map(function (m) { return "- " + m.content; }).join("\n");
 }
 
-function systemPrompt(userText) {
+function systemPrompt(userText, options) {
+  const opts = options || {};
+  // A situation is a stage direction, not something the user said, so reading
+  // it for conversational stance would produce nonsense directives.
+  const stance = opts.situation ? "" : stanceBlock(userText);
   return personaPrompt() +
     "\n\nWhat you remember about the user (only what's relevant right now):\n" + memoryBlock(userText) +
-    stanceBlock(userText) +
+    stance +
     recentOpeningsBlock();
 }
 
@@ -3092,8 +3144,17 @@ const DIRECT_MODEL_DEFAULTS = {
   openai: "gpt-4o-mini"
 };
 
-async function callProvider(userText) {
+/**
+ * options.situation — a description of something that happened, used by the
+ * event system. It is appended as the final user turn so the model has
+ * something to react to, but it is never stored, never rendered, and never
+ * replayed on a later turn: the character's reply is real, the prompt that
+ * produced it was not part of the conversation.
+ */
+async function callProvider(userText, options) {
+  const opts = options || {};
   const messages = historyForApi();
+  if (opts.situation) messages.push({ role: "user", content: opts.situation });
   const provider = AI_CONFIG.provider;
   const directModel = AI_CONFIG.model || DIRECT_MODEL_DEFAULTS[provider] || "";
 
@@ -3101,7 +3162,7 @@ async function callProvider(userText) {
 
   if (provider === "proxy") {
     const body = {
-      system: systemPrompt(userText),
+      system: systemPrompt(userText, opts),
       messages: messages,
       maxTokens: AI_CONFIG.maxTokens,
       temperature: AI_CONFIG.temperature,
@@ -3131,7 +3192,7 @@ async function callProvider(userText) {
         model: directModel,
         max_tokens: AI_CONFIG.maxTokens,
         temperature: AI_CONFIG.temperature,
-        system: systemPrompt(userText),
+        system: systemPrompt(userText, opts),
         messages: messages
       }
     });
@@ -3152,7 +3213,7 @@ async function callProvider(userText) {
         temperature: AI_CONFIG.temperature,
         presence_penalty: AI_CONFIG.presencePenalty,
         frequency_penalty: AI_CONFIG.frequencyPenalty,
-        messages: [{ role: "system", content: systemPrompt(userText) }].concat(messages)
+        messages: [{ role: "system", content: systemPrompt(userText, opts) }].concat(messages)
       }
     });
     const choice = data.choices && data.choices[0];
@@ -4371,6 +4432,630 @@ window.addEventListener("error", function (event) {
   console.error("[companion] unexpected error", event.error || event.message);
 });
 
+/* =========================================================================
+ * 13. PHONE / APP EVENT SYSTEM
+ * =========================================================================
+ * Everything so far only happens because the user typed something. This layer
+ * lets the companion notice the surroundings — the app being opened, the user
+ * going quiet, the phone going on charge, the evening arriving — and react.
+ *
+ * Deliberate boundaries:
+ *
+ *   - Sources know how to observe one thing and nothing else. They speak only
+ *     to EventManager.emit, never to the character, the sprite, or the API. A
+ *     native Android source can be added later by calling the same emit().
+ *   - EventManager normalises, deduplicates, gates on user settings, and
+ *     enforces cooldowns. It has no opinion about what any event means.
+ *   - EventPolicy decides what an event is worth: nothing, a change of
+ *     expression, a line the character says locally, or — rarely — a request
+ *     to the model. This is the only place that can spend API credit.
+ *   - Reactions compose the line from the systems that already exist
+ *     (Profile, mood, relationship, memory). Nothing here duplicates them.
+ *
+ * The anti-annoyance rules are the point of the whole design: a companion that
+ * comments on everything is worse than one that says nothing, so the default
+ * posture is silence and every path to speech has to earn it.
+ * ========================================================================= */
+
+const EVENTS_KEY = "companion.events.v1";
+
+const EVENT_TYPES = {
+  APP_OPENED: "APP_OPENED",
+  APP_BACKGROUNDED: "APP_BACKGROUNDED",
+  USER_RETURNED: "USER_RETURNED",
+  USER_IDLE: "USER_IDLE",
+  USER_INTERACTION: "USER_INTERACTION",
+  CHARGING_STARTED: "CHARGING_STARTED",
+  CHARGING_STOPPED: "CHARGING_STOPPED",
+  BATTERY_LOW: "BATTERY_LOW",
+  TIME_PERIOD_CHANGED: "TIME_PERIOD_CHANGED",
+  DAY_NIGHT_CHANGED: "DAY_NIGHT_CHANGED"
+};
+
+/**
+ * What each event is allowed to cost.
+ *
+ *   trivial  — bookkeeping. Never seen, never spoken, never sent anywhere.
+ *   ambient  — may quietly change the expression. Never speaks.
+ *   notable  — may speak, using a locally composed line. Never calls the API.
+ *   contextual — may, rarely, be worth a model-written reaction.
+ *
+ * `settingLabel` doubles as the user-facing toggle text, so the settings panel
+ * and the registry can never drift apart.
+ */
+const EVENT_REGISTRY = {
+  APP_OPENED:          { priority: "notable",    settingLabel: "Greet me when I open the app", defaultOn: true,  cooldownMs: 0 },
+  APP_BACKGROUNDED:    { priority: "trivial",    settingLabel: null,                           defaultOn: true,  cooldownMs: 0 },
+  USER_RETURNED:       { priority: "contextual", settingLabel: "Notice when I come back",      defaultOn: true,  cooldownMs: 10 * 60 * 1000 },
+  USER_IDLE:           { priority: "notable",    settingLabel: "Notice when I go quiet",       defaultOn: true,  cooldownMs: 30 * 60 * 1000 },
+  USER_INTERACTION:    { priority: "trivial",    settingLabel: null,                           defaultOn: true,  cooldownMs: 0 },
+  CHARGING_STARTED:    { priority: "ambient",    settingLabel: "React to charging",            defaultOn: true,  cooldownMs: 5 * 60 * 1000 },
+  CHARGING_STOPPED:    { priority: "ambient",    settingLabel: null,                           defaultOn: true,  cooldownMs: 5 * 60 * 1000 },
+  BATTERY_LOW:         { priority: "notable",    settingLabel: "Mention a low battery",        defaultOn: true,  cooldownMs: 60 * 60 * 1000 },
+  TIME_PERIOD_CHANGED: { priority: "ambient",    settingLabel: "Follow the time of day",       defaultOn: true,  cooldownMs: 0 },
+  DAY_NIGHT_CHANGED:   { priority: "notable",    settingLabel: "React to day/night changes",   defaultOn: true,  cooldownMs: 3 * 60 * 60 * 1000 }
+};
+
+/** Tunables in one place so tests can compress the clock instead of waiting. */
+const EVENT_TUNING = {
+  idleMs: 5 * 60 * 1000,           // silence before the user counts as idle
+  shortAwayMs: 60 * 1000,          // back this fast and nothing is said
+  longAwayMs: 45 * 60 * 1000,      // away this long is worth a real reaction
+  speakCooldownMs: 90 * 1000,      // minimum gap between any two spoken reactions
+  dedupeMs: 2000,                  // identical events inside this window collapse
+  batteryLowLevel: 0.15,
+  aiReactionsPerSession: 4,        // hard ceiling on event-driven API calls
+  clockTickMs: 60 * 1000
+};
+
+function timePeriodFor(date) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 17) return "afternoon";
+  if (hour >= 17 && hour < 22) return "evening";
+  return "night";
+}
+
+function isNightPeriod(period) { return period === "night"; }
+
+/* -------------------------------------------------------------------------
+ * Event manager — normalise, dedupe, gate, dispatch.
+ * ---------------------------------------------------------------------- */
+const EventManager = (function () {
+  let settings = null;
+  let listeners = [];
+  const lastEmitted = Object.create(null);   // type -> timestamp, for dedupe
+  const lastDelivered = Object.create(null); // type -> timestamp, for cooldown
+  const log = [];
+
+  function defaults() {
+    const out = { enabled: true, aiReactions: false, types: {} };
+    Object.keys(EVENT_REGISTRY).forEach(function (type) {
+      out.types[type] = EVENT_REGISTRY[type].defaultOn;
+    });
+    return out;
+  }
+
+  function load() {
+    settings = defaults();
+    let raw = null;
+    try { raw = window.localStorage.getItem(EVENTS_KEY); } catch (err) { raw = null; }
+    if (!raw) return settings;
+    let saved = null;
+    try { saved = JSON.parse(raw); } catch (err) { saved = null; }
+    if (!saved || typeof saved !== "object") return settings;
+    if (typeof saved.enabled === "boolean") settings.enabled = saved.enabled;
+    if (typeof saved.aiReactions === "boolean") settings.aiReactions = saved.aiReactions;
+    if (saved.types && typeof saved.types === "object") {
+      Object.keys(settings.types).forEach(function (type) {
+        if (typeof saved.types[type] === "boolean") settings.types[type] = saved.types[type];
+      });
+    }
+    return settings;
+  }
+
+  function persist() {
+    try { window.localStorage.setItem(EVENTS_KEY, JSON.stringify(settings)); } catch (err) { /* quota / private mode */ }
+  }
+
+  function getSettings() { return settings || load(); }
+
+  function setEnabled(on) { getSettings().enabled = Boolean(on); persist(); }
+  function setAiReactions(on) { getSettings().aiReactions = Boolean(on); persist(); }
+  function setTypeEnabled(type, on) {
+    const s = getSettings();
+    if (!(type in s.types)) return;
+    s.types[type] = Boolean(on);
+    persist();
+  }
+
+  function subscribe(fn) {
+    listeners.push(fn);
+    return function () { listeners = listeners.filter(function (l) { return l !== fn; }); };
+  }
+
+  /**
+   * The single entry point for every source, native or web. Returns the
+   * normalised event when it was dispatched, or null with a reason when it
+   * was dropped — tests and the console both read that reason.
+   */
+  function emit(type, detail) {
+    const spec = EVENT_REGISTRY[type];
+    if (!spec) return { dispatched: false, reason: "unknown_type" };
+
+    const s = getSettings();
+    const now = Date.now();
+
+    // Dedupe first: a source that double-fires must not even reach the log.
+    const previous = lastEmitted[type];
+    if (previous && now - previous < EVENT_TUNING.dedupeMs) {
+      return { dispatched: false, reason: "duplicate" };
+    }
+    lastEmitted[type] = now;
+
+    if (!s.enabled) return { dispatched: false, reason: "reactions_disabled" };
+    if (s.types[type] === false) return { dispatched: false, reason: "type_disabled" };
+
+    // Per-type cooldown. Trivial events are exempt because they carry no cost
+    // and other logic (idle timers) depends on seeing every one.
+    if (spec.cooldownMs && spec.priority !== "trivial") {
+      const last = lastDelivered[type];
+      if (last && now - last < spec.cooldownMs) {
+        return { dispatched: false, reason: "cooling_down" };
+      }
+    }
+    lastDelivered[type] = now;
+
+    const event = {
+      type: type,
+      priority: spec.priority,
+      at: now,
+      detail: detail || {}
+    };
+
+    log.push({ type: type, at: now });
+    if (log.length > 60) log.splice(0, log.length - 60);
+
+    listeners.forEach(function (fn) {
+      try { fn(event); } catch (err) { console.error("[events] listener failed for " + type, err); }
+    });
+    return { dispatched: true, event: event };
+  }
+
+  return {
+    TYPES: EVENT_TYPES,
+    load: load,
+    emit: emit,
+    subscribe: subscribe,
+    settings: getSettings,
+    setEnabled: setEnabled,
+    setAiReactions: setAiReactions,
+    setTypeEnabled: setTypeEnabled,
+    recent: function () { return log.slice(); },
+    /** Test seam: forget cooldown/dedupe history without touching settings. */
+    resetTimers: function () {
+      Object.keys(lastEmitted).forEach(function (k) { delete lastEmitted[k]; });
+      Object.keys(lastDelivered).forEach(function (k) { delete lastDelivered[k]; });
+    }
+  };
+}());
+
+/* -------------------------------------------------------------------------
+ * Event sources. Each observes exactly one thing and calls emit().
+ * ---------------------------------------------------------------------- */
+const EventSources = (function () {
+  let idleTimer = null;
+  let clockTimer = null;
+  let lastHiddenAt = 0;
+  let userIsIdle = false;
+  let currentPeriod = timePeriodFor(new Date());
+  let batterySupported = false;
+  let started = false;
+
+  function armIdleTimer() {
+    if (idleTimer) window.clearTimeout(idleTimer);
+    idleTimer = window.setTimeout(function () {
+      // Someone who has switched away is not "idle in the app"; the visibility
+      // source already covers that and firing both would double-react.
+      if (document.visibilityState === "hidden") return;
+      userIsIdle = true;
+      EventManager.emit(EVENT_TYPES.USER_IDLE, { idleMs: EVENT_TUNING.idleMs });
+    }, EVENT_TUNING.idleMs);
+  }
+
+  function noteInteraction(kind) {
+    const wasIdle = userIsIdle;
+    userIsIdle = false;
+    armIdleTimer();
+    EventManager.emit(EVENT_TYPES.USER_INTERACTION, { kind: kind, endedIdle: wasIdle });
+  }
+
+  function checkClock() {
+    const now = new Date();
+    const period = timePeriodFor(now);
+    if (period === currentPeriod) return;
+    const from = currentPeriod;
+    currentPeriod = period;
+    EventManager.emit(EVENT_TYPES.TIME_PERIOD_CHANGED, { from: from, to: period });
+    if (isNightPeriod(from) !== isNightPeriod(period)) {
+      EventManager.emit(EVENT_TYPES.DAY_NIGHT_CHANGED, { from: from, to: period, night: isNightPeriod(period) });
+    }
+  }
+
+  /**
+   * Battery Status API. Origin-gated rather than permission-gated — no prompt
+   * is shown and nothing is requested from the user. Absent on iOS and
+   * Firefox, where the capability simply reports false and no events fire.
+   */
+  function startBattery() {
+    if (!navigator.getBattery) return;
+    navigator.getBattery().then(function (battery) {
+      batterySupported = true;
+      let charging = battery.charging;
+      let lowAnnounced = battery.level <= EVENT_TUNING.batteryLowLevel;
+
+      battery.addEventListener("chargingchange", function () {
+        if (battery.charging === charging) return;
+        charging = battery.charging;
+        EventManager.emit(
+          charging ? EVENT_TYPES.CHARGING_STARTED : EVENT_TYPES.CHARGING_STOPPED,
+          { level: battery.level, charging: charging }
+        );
+        if (charging) lowAnnounced = false;   // plugged in: the warning is spent
+      });
+
+      battery.addEventListener("levelchange", function () {
+        const low = battery.level <= EVENT_TUNING.batteryLowLevel;
+        if (low && !lowAnnounced && !battery.charging) {
+          lowAnnounced = true;
+          EventManager.emit(EVENT_TYPES.BATTERY_LOW, { level: battery.level });
+        }
+        if (!low) lowAnnounced = false;
+      });
+    }).catch(function () { batterySupported = false; });
+  }
+
+  function start(options) {
+    if (started) return;
+    started = true;
+    const opts = options || {};
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") {
+        lastHiddenAt = Date.now();
+        if (idleTimer) window.clearTimeout(idleTimer);
+        EventManager.emit(EVENT_TYPES.APP_BACKGROUNDED, { at: lastHiddenAt });
+        return;
+      }
+      const awayMs = lastHiddenAt ? Date.now() - lastHiddenAt : 0;
+      userIsIdle = false;
+      armIdleTimer();
+      checkClock();   // time may have moved on considerably while away
+      EventManager.emit(EVENT_TYPES.USER_RETURNED, { awayMs: awayMs });
+    });
+
+    // "Interaction" means the user did something in the app, not that a pixel
+    // moved: pointer taps, keystrokes, and sending a message all count.
+    ["pointerdown", "keydown"].forEach(function (name) {
+      window.addEventListener(name, function () { noteInteraction(name); }, { passive: true });
+    });
+
+    clockTimer = window.setInterval(checkClock, EVENT_TUNING.clockTickMs);
+    armIdleTimer();
+    startBattery();
+
+    // `returning` has to be decided by the caller: by the time this runs, boot
+    // may already have pushed a first-run greeting, and counting messages here
+    // would greet a brand-new user twice.
+    EventManager.emit(EVENT_TYPES.APP_OPENED, {
+      period: currentPeriod,
+      returning: opts.returning === true
+    });
+  }
+
+  return {
+    start: start,
+    noteInteraction: noteInteraction,
+    period: function () { return currentPeriod; },
+    isIdle: function () { return userIsIdle; },
+    /** What this platform can actually observe. Native sources extend this. */
+    capabilities: function () {
+      return {
+        visibility: typeof document.visibilityState === "string",
+        idle: true,
+        interaction: true,
+        clock: true,
+        battery: batterySupported,
+        native: false
+      };
+    },
+    /** Test seam: drive the clock check without waiting for the interval. */
+    checkClock: checkClock,
+    setPeriod: function (p) { currentPeriod = p; }
+  };
+}());
+
+/* -------------------------------------------------------------------------
+ * Reactions — what the character does about an event.
+ * ---------------------------------------------------------------------- */
+const EventReactions = (function () {
+  let lastSpokeAt = 0;
+  let aiReactionsUsed = 0;
+  let lastSpokenType = null;
+
+  function rel() { return CHARACTER.relationship.stage; }
+
+  /** Warm tiers get familiar lines; distant ones get reserved ones. */
+  function warm() {
+    const stage = rel();
+    return stage === "friend" || stage === "close_friend" ||
+           stage === "romantic_interest" || stage === "partner";
+  }
+
+  /**
+   * May the character say something out loud right now? Every rule here exists
+   * to stop it becoming noise.
+   */
+  function maySpeak() {
+    if (state.busy) return false;                                  // mid-turn
+    if (!dom.creator.hidden) return false;                         // in setup
+    if (document.visibilityState === "hidden") return false;       // nobody looking
+    if (dom.input.value.trim()) return false;                      // user is typing
+    if (Date.now() - lastSpokeAt < EVENT_TUNING.speakCooldownMs) return false;
+    // Never twice in a row: if the last thing in the transcript is already the
+    // character talking to itself, wait for the user before speaking again.
+    const last = state.messages[state.messages.length - 1];
+    if (last && last.role === "bot" && last.fromEvent) return false;
+    return true;
+  }
+
+  function speak(text, mood, meta) {
+    if (!text) return false;
+    lastSpokeAt = Date.now();
+    lastSpokenType = meta && meta.type;
+    sprites.set(commitMood(mood, false));
+    // fromEvent marks this as unprompted, so the "don't monologue" rule above
+    // can tell it apart from a reply the user actually asked for.
+    pushMessage("bot", text, { mood: mood, fromEvent: meta && meta.type });
+    return true;
+  }
+
+  /** Change the face only. Silent, costs nothing, allowed while hidden. */
+  function shift(mood) {
+    if (!isExpression(mood)) return false;
+    sprites.set(commitMood(mood, false));
+    saveState();
+    return true;
+  }
+
+  function greeting(event) {
+    const name = findFacts("name")[0];
+    const who = name ? name.value : null;
+    const period = EventSources.period();
+    if (!event.detail.returning) return null;  // first run is handled by greet()
+
+    if (period === "night") {
+      return pick("ev-open-night", warm()
+        ? ["Still up? Figures.", "You and the small hours again."]
+        : ["Late one.", "It's late. But sure, let's talk."]);
+    }
+    return pick("ev-open", warm()
+      ? [(who ? who + "." : "Oh, you.") + " Back for more.",
+         "There you are.",
+         "Good " + period + ". What's the plan?"]
+      : ["Back again.", "Good " + period + ".", "You're here."]);
+  }
+
+  function returnLine(event) {
+    const away = event.detail.awayMs || 0;
+    if (away < EVENT_TUNING.shortAwayMs) return null;   // a glance away is not an absence
+    const minutes = Math.round(away / 60000);
+    if (away < 15 * 60 * 1000) {
+      return pick("ev-back-short", warm()
+        ? ["That was quick.", "Back already?"]
+        : ["Back.", "There you are."]);
+    }
+    if (away < EVENT_TUNING.longAwayMs) {
+      return pick("ev-back-mid", warm()
+        ? ["You were gone a while.", minutes + " minutes. Not that I counted."]
+        : ["You've been away.", "Back, then."]);
+    }
+    return pick("ev-back-long", warm()
+      ? ["Well. Look who remembered I exist.", "You've been gone hours. I managed."]
+      : ["It's been a while.", "Long gap. Anyway."]);
+  }
+
+  function idleLine() {
+    if (!state.messages.length) return null;   // nothing to be quiet *about*
+    return pick("ev-idle", warm()
+      ? ["Still there?", "You went quiet on me.", "You're thinking, or you wandered off?"]
+      : ["Still around?", "Gone quiet."]);
+  }
+
+  function batteryLine(event) {
+    const percent = Math.round((event.detail.level || 0) * 100);
+    return pick("ev-batt", warm()
+      ? ["You're at " + percent + "%. Charge the thing.", percent + "% left. I'd rather not vanish mid-sentence."]
+      : ["Battery's at " + percent + "%.", "You're down to " + percent + "%."]);
+  }
+
+  function dayNightLine(event) {
+    if (event.detail.night) {
+      return pick("ev-night", warm()
+        ? ["It got dark while we were talking.", "Evening's gone. Don't stay up on my account."]
+        : ["It's night now."]);
+    }
+    return pick("ev-day", warm()
+      ? ["Morning happened.", "It's light out. You survived."]
+      : ["It's morning."]);
+  }
+
+  /**
+   * Ask the model to react, using the same prompt pipeline as a normal turn so
+   * personality, mood, relationship, memory and recent history all apply. The
+   * user's "message" describes the situation and is never shown or stored — it
+   * exists only to give the model something to react to.
+   */
+  async function aiReaction(event, situation) {
+    if (!EventManager.settings().aiReactions) return false;
+    if (aiReactionsUsed >= EVENT_TUNING.aiReactionsPerSession) return false;
+    if (AI_CONFIG.provider === "local" || state.transport !== "remote") return false;
+    if (state.busy) return false;
+
+    aiReactionsUsed += 1;
+    try {
+      const raw = await callProvider(situation, { situation: situation });
+      if (!raw) return false;
+      const parsed = parseReply(raw);
+      if (!parsed.text) return false;
+      if (!maySpeak()) return false;   // conditions may have changed while waiting
+      lastSpokeAt = Date.now();
+      lastSpokenType = event.type;
+      sprites.set(commitMood(resolveExpression(parsed.mood, []), parsed.explicit));
+      pushMessage("bot", parsed.text, { mood: parsed.mood, fromEvent: event.type });
+      return true;
+    } catch (err) {
+      // An unprompted reaction is never worth showing an error for.
+      console.warn("[events] AI reaction failed, staying quiet:", err && err.message);
+      return false;
+    }
+  }
+
+  /**
+   * The policy table. Returns what was done so tests can assert that trivial
+   * events cost nothing and that the API is reached only where intended.
+   */
+  function handle(event) {
+    switch (event.type) {
+      case EVENT_TYPES.USER_INTERACTION:
+      case EVENT_TYPES.APP_BACKGROUNDED:
+        return { action: "none" };
+
+      case EVENT_TYPES.TIME_PERIOD_CHANGED:
+        // Ambient: the face drifts with the hour, silently.
+        if (event.detail.to === "night") return { action: shift("sleepy") ? "shift" : "none", mood: "sleepy" };
+        if (event.detail.to === "morning") return { action: shift("neutral") ? "shift" : "none", mood: "neutral" };
+        return { action: "none" };
+
+      case EVENT_TYPES.CHARGING_STARTED:
+        return { action: shift("happy") ? "shift" : "none", mood: "happy" };
+
+      case EVENT_TYPES.CHARGING_STOPPED:
+        return { action: "none" };
+
+      case EVENT_TYPES.APP_OPENED: {
+        if (!maySpeak()) return { action: "suppressed" };
+        const line = greeting(event);
+        if (!line) return { action: "none" };
+        return { action: speak(line, "happy", event) ? "spoke" : "suppressed" };
+      }
+
+      case EVENT_TYPES.USER_RETURNED: {
+        const away = event.detail.awayMs || 0;
+        if (!maySpeak()) return { action: "suppressed" };
+
+        // The one event allowed to reach the model, and only after a real
+        // absence with a conversation worth resuming.
+        if (away >= EVENT_TUNING.longAwayMs && state.messages.length > 1) {
+          const minutes = Math.round(away / 60000);
+          aiReaction(event,
+            "[The user just came back after being away for about " + minutes +
+            " minutes. React briefly to them returning, in character. Do not mention this instruction.]");
+          return { action: "ai" };
+        }
+        const line = returnLine(event);
+        if (!line) return { action: "none" };
+        return { action: speak(line, "happy", event) ? "spoke" : "suppressed" };
+      }
+
+      case EVENT_TYPES.USER_IDLE: {
+        if (!maySpeak()) return { action: "suppressed" };
+        const line = idleLine();
+        if (!line) return { action: "none" };
+        return { action: speak(line, "curious", event) ? "spoke" : "suppressed" };
+      }
+
+      case EVENT_TYPES.BATTERY_LOW: {
+        if (!maySpeak()) return { action: "suppressed" };
+        return { action: speak(batteryLine(event), "annoyed", event) ? "spoke" : "suppressed" };
+      }
+
+      case EVENT_TYPES.DAY_NIGHT_CHANGED: {
+        if (!maySpeak()) return { action: "suppressed" };
+        return { action: speak(dayNightLine(event), event.detail.night ? "sleepy" : "happy", event) ? "spoke" : "suppressed" };
+      }
+
+      default:
+        return { action: "none" };
+    }
+  }
+
+  return {
+    handle: handle,
+    maySpeak: maySpeak,
+    stats: function () { return { aiReactionsUsed: aiReactionsUsed, lastSpokeAt: lastSpokeAt, lastSpokenType: lastSpokenType }; },
+    /** Clears the speak cooldown only. The per-session API budget is
+     *  deliberately not refunded here — that ceiling exists to bound spend and
+     *  must not be resettable by anything short of a reload. */
+    reset: function () { lastSpokeAt = 0; lastSpokenType = null; }
+  };
+}());
+
+/* -------------------------------------------------------------------------
+ * Settings panel. Built from EVENT_REGISTRY so the two cannot drift.
+ * ---------------------------------------------------------------------- */
+const EventSettingsUI = (function () {
+  function togglableTypes() {
+    return Object.keys(EVENT_REGISTRY).filter(function (t) { return EVENT_REGISTRY[t].settingLabel; });
+  }
+
+  function syncDisabled() {
+    const on = EventManager.settings().enabled;
+    dom.evList.querySelectorAll("input").forEach(function (input) { input.disabled = !on; });
+    dom.evAi.disabled = !on;
+  }
+
+  function render() {
+    const s = EventManager.settings();
+    dom.evMaster.checked = s.enabled;
+    dom.evAi.checked = s.aiReactions;
+
+    dom.evList.innerHTML = "";
+    togglableTypes().forEach(function (type) {
+      const label = document.createElement("label");
+      label.className = "switch";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = s.types[type] !== false;
+      input.dataset.eventType = type;
+      input.addEventListener("change", function () {
+        EventManager.setTypeEnabled(type, input.checked);
+      });
+      const span = document.createElement("span");
+      span.textContent = EVENT_REGISTRY[type].settingLabel;
+      label.appendChild(input);
+      label.appendChild(span);
+      dom.evList.appendChild(label);
+    });
+
+    const caps = EventSources.capabilities();
+    dom.evNote.textContent = caps.battery
+      ? "Charging and battery come from this device."
+      : "This browser doesn't report battery status, so those reactions stay quiet.";
+    syncDisabled();
+  }
+
+  dom.evMaster.addEventListener("change", function () {
+    EventManager.setEnabled(dom.evMaster.checked);
+    syncDisabled();
+  });
+  dom.evAi.addEventListener("change", function () {
+    EventManager.setAiReactions(dom.evAi.checked);
+  });
+
+  return { render: render };
+}());
+
 /**
  * One namespaced handle onto the modules for debugging in the console and for
  * automated checks. Everything here already lives in the page; no credential
@@ -4379,6 +5064,9 @@ window.addEventListener("error", function (event) {
  */
 window.__companion = {
   Profile: Profile, Memory: Memory, Stage: Stage, sprites: sprites,
+  EventManager: EventManager, EventSources: EventSources, EventReactions: EventReactions,
+  EVENT_TYPES: EVENT_TYPES, EVENT_REGISTRY: EVENT_REGISTRY, EVENT_TUNING: EVENT_TUNING,
+  timePeriodFor: timePeriodFor,
   CHARACTER: CHARACTER, COMPANION: COMPANION, AI_CONFIG: AI_CONFIG,
   state: state,
   personaPrompt: personaPrompt, systemPrompt: systemPrompt,
@@ -4405,6 +5093,7 @@ window.__companion = {
 
   applyProfile();
   Stage.load();
+  EventManager.load();
   loadState();
   renderAll();
   Stage.apply();
@@ -4421,11 +5110,18 @@ window.__companion = {
 
   showApp();
   syncViewportMetrics();
+  const hadConversation = state.messages.length > 0;
   if (!state.messages.length) {
     greet();
   } else if (!store.available) {
     pushMessage("system", "Heads up: localStorage is blocked in this browser, so this conversation disappears on refresh.");
   }
+
+  // Reactions come last: the transcript, character and sprite all have to be
+  // in their final state before the first event can be reacted to.
+  EventSettingsUI.render();
+  EventManager.subscribe(EventReactions.handle);
+  EventSources.start({ returning: hadConversation });
 }());
 
 /* Register service worker for PWA offline support */

@@ -127,6 +127,56 @@ the sprite on the stage. Replies that arrive as plain prose — or with the olde
 `[[mood:x]]` tag — are still parsed, and an unrecognised emotion is dropped rather
 than shown.
 
+## Reacting to what's happening
+
+Beyond replying to messages, the companion notices a few things about its
+surroundings. Sources observe one thing each and hand a normalised event to the
+event manager; the manager deduplicates, applies the user's settings and
+per-type cooldowns; a policy layer decides whether the event is worth nothing,
+an expression change, a locally written line, or — rarely — a model-written
+reaction.
+
+| Event | Priority | What it may do |
+| --- | --- | --- |
+| `APP_OPENED` | notable | greets a returning user, locally |
+| `APP_BACKGROUNDED` | trivial | nothing |
+| `USER_RETURNED` | contextual | remarks locally; **only** path that may reach the API |
+| `USER_IDLE` | notable | one local nudge, at most every 30 min |
+| `USER_INTERACTION` | trivial | resets the idle timer, nothing else |
+| `CHARGING_STARTED` / `CHARGING_STOPPED` | ambient | expression only, silent |
+| `BATTERY_LOW` | notable | one local remark per hour |
+| `TIME_PERIOD_CHANGED` | ambient | expression drifts with the hour, silent |
+| `DAY_NIGHT_CHANGED` | notable | one local remark |
+
+Reactions default to on; **AI-written reactions default to off**. When enabled,
+only a return after 45+ minutes with a conversation worth resuming may spend a
+call, capped at four per session. Everything else is composed locally from the
+character's own personality, mood and relationship, and costs nothing.
+
+The rules that keep it from becoming noise: nothing is said while the user is
+typing, while a reply is in flight, while the tab is hidden, within 90 seconds
+of the last unprompted line, or twice in a row without the user saying something
+in between. Ambient expression drift also yields to a mood the character is
+still strongly holding.
+
+Per-event toggles live in the ⚙ panel on the character stage.
+
+### What needs a native Android shell
+
+Everything above runs in the browser today. `visibilitychange` covers opening,
+backgrounding and returning; timers cover idle and the clock; the Battery Status
+API covers charge state and level without any permission prompt (Chrome on
+Android; absent on iOS and Firefox, where those reactions simply stay quiet).
+
+A PWA gets no execution time while backgrounded, so `BATTERY_LOW` and
+`TIME_PERIOD_CHANGED` are observed on return rather than at the moment they
+happen. Genuine background triggering needs a native shell (Capacitor plus a
+foreground service). Adding one means writing a source that calls
+`EventManager.emit()` with the same event names — no other layer changes.
+
+Deliberately out of scope: notifications, contacts, SMS, call logs, microphone,
+and location. None of them are read, requested, or referenced anywhere.
+
 ## Memory
 
 Conversation and extracted facts are stored in `localStorage` under
