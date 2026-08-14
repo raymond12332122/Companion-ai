@@ -6561,6 +6561,21 @@ const GemmaLocalUI = (function () {
   }
 
   function render() {
+    // No native bridge reached this plugin — say so plainly and disable the
+    // button, rather than hiding the whole section. A vanished section looks
+    // identical to a section that was never built; a disabled button with an
+    // explanation is the difference between "broken" and "not available".
+    if (!DeviceGemma) {
+      dom.gemmaModel.hidden = true;
+      dom.gemmaImport.textContent = "Import model";
+      dom.gemmaImport.disabled = true;
+      dom.gemmaRemove.hidden = true;
+      note("The native Gemma plugin isn't reachable from this WebView (window.Capacitor" +
+        (window.Capacitor ? ".registerPlugin returned nothing usable" : " is undefined") +
+        "). This isn't a missing feature — it's the bridge not connecting.", "error");
+      return;
+    }
+
     const status = gemmaStatus;
     const has = Boolean(status && status.modelId);
     dom.gemmaModel.hidden = !has;
@@ -6627,7 +6642,7 @@ const GemmaLocalUI = (function () {
   }
 
   async function onImport() {
-    if (busy) return;
+    if (busy || !DeviceGemma) return;
     busy = true;
     render();
     note("Pick the model file…");
@@ -6683,10 +6698,17 @@ const GemmaLocalUI = (function () {
   }
 
   function init() {
-    if (!DeviceGemma) return;
+    // Always shown, unlike the LocalAiUI section above: whether the native
+    // bridge is actually reachable is exactly the thing this build needs to
+    // surface, not hide behind a vanished section indistinguishable from a
+    // feature that was never built.
     dom.gemmaGroup.hidden = false;
     dom.gemmaImport.addEventListener("click", onImport);
     dom.gemmaRemove.addEventListener("click", onRemove);
+    if (!DeviceGemma) {
+      render();
+      return;
+    }
     refreshGemmaStatus().then(render).catch(render);
   }
 
