@@ -1546,9 +1546,21 @@ const DeviceStream = {
  * `window.Capacitor.Plugins[pluginName]`. That object is where a plugin
  * actually appears in this runtime, `registerPlugin` or no.
  */
-const DeviceGemma = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CompanionGemma)
-  ? window.Capacitor.Plugins.CompanionGemma
-  : null;
+/**
+ * DEV/TEST ONLY — never set by production code, never reachable through any
+ * UI, URL, or storage. A Node test harness pre-sets this exact global
+ * (`window.__COMPANION_MOCK_GEMMA__ = createMockGemmaProvider(...)`, see
+ * test/mockGemmaProvider.js and test/harness.js) *before* this script runs,
+ * so the check below only ever sees it in that one deliberate case. If the
+ * real model or the real plugin is simply unavailable, this stays undefined
+ * and the code below falls through to the real (null) lookup exactly as
+ * before — the mock cannot activate itself as a fallback.
+ */
+const DeviceGemma = window.__COMPANION_MOCK_GEMMA__
+  ? window.__COMPANION_MOCK_GEMMA__
+  : (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CompanionGemma)
+    ? window.Capacitor.Plugins.CompanionGemma
+    : null;
 
 /** Last answer from DeviceGemma.isAvailable(): {available, loaded, reason, modelId, sizeBytes, backend}. */
 let gemmaStatus = null;
@@ -1743,6 +1755,11 @@ const GemmaDebug = {
     const tok = function (v) { return v === null || v === undefined || v < 0 ? "?" : String(v); };
     const lines = [
       "[Gemma debug] active provider: " + this.provider,
+      // Unmissable in debug output whenever the dev/test mock plugin is
+      // what actually answered — never guessable from "provider: gemma"
+      // alone, since that string is identical whether the real native
+      // plugin or the mock is behind DeviceGemma.
+      "Provider: " + (DeviceGemma && DeviceGemma.__isMock ? "MOCK" : "GEMMA"),
       "Model loaded: " + yn(this.modelLoaded),
       "Model path: " + (this.modelPath || "?"),
       "Model size: " + (this.modelSizeBytes ? (this.modelSizeBytes / 1048576).toFixed(1) + " MB" : "?"),

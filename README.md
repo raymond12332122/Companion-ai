@@ -28,6 +28,20 @@ Pixel falls back to a small built-in offline brain so the page stays usable: it
 still greets you, remembers facts, answers recall questions, and runs commands.
 The status pill in the header always tells you which mode you're in.
 
+## Testing
+
+```bash
+npm test
+```
+
+Runs the provider-abstraction test suite (`test/run.js`) against the real
+`index.html` app code in a Node `vm` sandbox, with a deterministic mock
+standing in for the native Gemma plugin (`test/mockGemmaProvider.js`) — no
+Android device and no 529 MB model required. See `CLAUDE.md`'s
+"Development vs. real-device vs. production" section for what this does and
+doesn't prove, and the three-agent (`haiku-qa`/`sonnet-builder`/
+`opus-engineer`) development workflow this repo uses.
+
 ## Configuring the AI
 
 There is one configuration block, near the top of the script in `index.html`:

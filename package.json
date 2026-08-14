@@ -4,7 +4,7 @@
   "description": "A small single-page web app with an AI companion built into it. Pixel lives in a panel beside the workspace content, talks casually, remembers what you tell it for the session, and changes its face depending on how the conversation is going.",
   "main": "sw.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node test/run.js",
     "build:www": "node scripts/build-www.js",
     "cap:sync": "npm run build:www && npx cap sync android",
     "android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug"

@@ -3,6 +3,7 @@ package ai.companion.pixel.gemma
 import android.content.Context
 import android.content.SharedPreferences
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Where the imported Gemma `.task` file lives, and the little bit of metadata
@@ -51,5 +52,36 @@ object GemmaModelStore {
         val gone = !file.exists() || file.delete()
         if (gone) forget(context)
         return gone
+    }
+
+    // TEMP DEBUG — SHA-256 of the imported model file, for the real-device
+    // diagnostic report. Cached in-memory, keyed by (path, length,
+    // lastModified) so a re-import (which overwrites the same fixed path)
+    // invalidates it automatically without needing an explicit cache-clear
+    // call site. Hashing 500+ MB takes real time — this is deliberately
+    // never called from a hot path like isAvailable(); only from an
+    // explicit diagnostics request.
+    @Volatile private var cachedSha256: Triple<String, Long, Long>? = null // path, length, lastModified
+    @Volatile private var cachedSha256Value: String? = null
+
+    fun sha256(context: Context): String? {
+        val file = modelFile(context)
+        if (!file.isFile) return null
+        val key = Triple(file.absolutePath, file.length(), file.lastModified())
+        if (cachedSha256 == key) return cachedSha256Value
+
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1 shl 20)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        val hex = digest.digest().joinToString("") { "%02x".format(it) }
+        cachedSha256 = key
+        cachedSha256Value = hex
+        return hex
     }
 }

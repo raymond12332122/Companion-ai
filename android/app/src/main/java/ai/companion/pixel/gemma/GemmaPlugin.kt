@@ -82,6 +82,34 @@ class GemmaPlugin : Plugin() {
     }
 
     /**
+     * TEMP DEBUG — the real-device diagnostic report: everything from
+     * isAvailable() plus the two fields that are genuinely expensive
+     * (SHA-256 — real disk I/O over ~500 MB, cached after the first call)
+     * or static (runtimeVersion). Deliberately separate from isAvailable(),
+     * which is called on every message; this is only for an explicit
+     * diagnostics request. Never exposes model contents, only metadata.
+     */
+    @PluginMethod
+    fun getModelDiagnostics(call: PluginCall) {
+        val status = engine.availability(context)
+        val file = GemmaModelStore.modelFile(context)
+        call.resolve(JSObject().apply {
+            put("modelFilename", if (file.isFile) file.name else null)
+            put("sizeBytes", status.sizeBytes)
+            put("sha256", if (file.isFile) GemmaModelStore.sha256(context) else null)
+            put("modelPath", status.modelPath)
+            // Tracks mediapipeGenAiVersion in android/variables.gradle — not
+            // read from a BuildConfig field, since wiring one is a
+            // build.gradle change with its own build+verify cycle this
+            // pass didn't include. Update by hand if that version changes.
+            put("runtimeVersion", "com.google.mediapipe:tasks-genai:0.10.35")
+            put("backend", status.backend)
+            put("modelLoaded", status.loaded)
+            put("engineInitialized", status.loaded)
+        })
+    }
+
+    /**
      * Opens the system document picker and copies the chosen file into this
      * plugin's own fixed model slot, replacing whatever was there before.
      *
