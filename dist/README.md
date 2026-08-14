@@ -7,7 +7,7 @@ loop: download it from GitHub in the phone's browser and open it. There is no
 `adb` step.
 
 ```
-https://github.com/raymond12332122/companion-ai/raw/refs/heads/claude/ai-companion-buddy-jvj4bq/dist/companion-ai-debug-arm64.apk
+https://github.com/raymond12332122/Companion-ai/raw/refs/heads/claude/ai-companion-buddy-jvj4bq/dist/companion-ai-debug-arm64.apk
 ```
 
 SHA-256: `a0663e88874240a99609cf3fe0799df2bee752c33165f6ae816ed3702c826513`
