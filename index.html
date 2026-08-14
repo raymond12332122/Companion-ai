@@ -95,6 +95,7 @@
     box-shadow: 0 0 0 4px rgba(255, 255, 255, .05);
   }
   .status[data-state="online"] .status__dot { background: var(--accent-2); }
+  .status[data-state="device"] .status__dot { background: #7fd6ff; }
   .status[data-state="local"]  .status__dot { background: #ffd166; }
   .status[data-state="error"]  .status__dot { background: var(--danger); }
 
@@ -1238,6 +1239,14 @@
  *                  the API key stays on the server and never reaches the browser.
  *   "anthropic" -> call the Anthropic API directly from the browser.
  *   "openai"    -> call any OpenAI-compatible /chat/completions endpoint directly.
+ *   "device"    -> run inference on-device via the CompanionLocalLlm Capacitor
+ *                  plugin (android/app/.../llm/). No network, no API key. Only
+ *                  meaningful inside the native Android shell — see
+ *                  deviceLlmAvailable() below. As of this build the plugin's
+ *                  engine is a stub with no model bundled, so this provider is
+ *                  wired up but always reports itself unavailable; callers
+ *                  fall through exactly as they would for a misconfigured
+ *                  cloud provider. See /LOCAL_AI_INVESTIGATION.md.
  *   "local"     -> no network at all; use the built-in offline brain.
  *
  * NEVER commit a real API key here. Anything in `apiKey` is shipped to every
@@ -1265,9 +1274,44 @@ const AI_CONFIG = {
   // as the conversation grows. Ignored by providers that don't support it.
   jsonMode: true,
   timeoutMs: 30000,
+  // The "device" provider gets its own, shorter budget: on-device generation
+  // that hasn't produced a first token quickly usually isn't going to, and
+  // there's a cloud/offline fallback chain waiting behind it either way.
+  deviceTimeoutMs: 12000,
   historyTurns: 20,           // how many past messages get sent as context
   fallbackToLocal: true       // if the request fails, answer with the offline brain
 };
+
+/**
+ * Bridge to the CompanionLocalLlm Capacitor plugin (android/app/.../llm/).
+ * Undefined outside the native Android shell — `Capacitor.registerPlugin`
+ * only exists when Capacitor's runtime has actually injected itself into the
+ * page, which plain browser tabs and the Node proxy's static serving never
+ * do. Every caller checks this before touching it, so nothing here changes
+ * behaviour for the web build.
+ */
+const DeviceLlm = (window.Capacitor && typeof window.Capacitor.registerPlugin === "function")
+  ? window.Capacitor.registerPlugin("CompanionLocalLlm")
+  : null;
+
+/**
+ * Cached across a session: availability doesn't change turn-to-turn, and
+ * asking again on every message would mean a native round-trip before every
+ * single reply just to confirm what was already known.
+ */
+let deviceLlmAvailable = null;
+
+async function checkDeviceLlmAvailable() {
+  if (!DeviceLlm) return false;
+  if (deviceLlmAvailable !== null) return deviceLlmAvailable;
+  try {
+    const status = await DeviceLlm.isAvailable();
+    deviceLlmAvailable = Boolean(status && status.available);
+  } catch (err) {
+    deviceLlmAvailable = false;
+  }
+  return deviceLlmAvailable;
+}
 
 /* =========================================================================
  * 2. CHARACTER DEFINITION
@@ -3174,7 +3218,10 @@ function setBusy(on) {
 }
 
 function setStatus(kind, text) {
-  state.transport = kind === "online" ? "remote" : kind === "local" ? "local" : state.transport;
+  state.transport = kind === "online" ? "remote"
+    : kind === "device" ? "device"
+    : kind === "local" ? "local"
+    : state.transport;
   dom.statusPill.dataset.state = kind;
   dom.statusText.textContent = text;
 }
@@ -3546,6 +3593,49 @@ async function callProvider(userText, options) {
   const directModel = AI_CONFIG.model || DIRECT_MODEL_DEFAULTS[provider] || "";
 
   if (provider === "local") return null; // handled by the caller
+
+  if (provider === "device") {
+    if (!DeviceLlm) throw AiError("config", "On-device inference isn't available outside the Android app");
+    if (!(await checkDeviceLlmAvailable())) {
+      throw AiError("config", "No on-device model is loaded — see android/app/.../llm/README.md");
+    }
+
+    // Capacitor plugin calls don't take an AbortSignal, so the timeout budget
+    // is enforced by racing the native call against a timer instead — the
+    // native call may keep running after this, but the UI stops waiting on it
+    // and falls back the same way a cloud timeout would.
+    let timer;
+    const budget = new Promise(function (_, reject) {
+      timer = window.setTimeout(function () { reject(AiError("timeout", "On-device inference timed out")); }, AI_CONFIG.deviceTimeoutMs);
+    });
+    let result;
+    try {
+      result = await Promise.race([
+        DeviceLlm.generate({
+          system: systemPrompt(userText, opts),
+          messages: messages,
+          maxTokens: AI_CONFIG.maxTokens,
+          temperature: AI_CONFIG.temperature
+        }),
+        budget
+      ]);
+    } catch (err) {
+      if (err && err.kind) throw err; // already an AiError (the timeout above)
+      throw AiError("network", "On-device inference failed: " + (err && err.message ? err.message : String(err)));
+    } finally {
+      window.clearTimeout(timer);
+    }
+
+    // Re-packaged as the same {"response","emotion"} JSON text a cloud
+    // completion would contain, so parseReply()'s extraction logic — which
+    // every other provider already goes through — needs no device-specific
+    // branch. The plugin does its own JSON assembly (or will, once a real
+    // engine replaces the stub); the wire shape stays identical either way.
+    return JSON.stringify({
+      response: result && typeof result.response === "string" ? result.response : "",
+      emotion: result && typeof result.emotion === "string" ? result.emotion : null
+    });
+  }
 
   if (provider === "proxy") {
     const body = {
@@ -4051,7 +4141,9 @@ async function askCompanion(userText, relationshipEventKinds, options) {
   // A failed request parks the session on the offline brain so the next few
   // turns don't each pay a timeout. "Try again" is the user explicitly asking
   // for the backend, so it lifts that parking rather than replaying offline.
-  if (opts.retry && AI_CONFIG.provider !== "local") state.transport = "remote";
+  if (opts.retry && AI_CONFIG.provider !== "local") {
+    state.transport = AI_CONFIG.provider === "device" ? "device" : "remote";
+  }
 
   // Fade the standing mood before the prompt is composed, so what the model
   // is told reflects a mood that has had a turn to cool.
@@ -4181,6 +4273,22 @@ async function detectBackend() {
   if (AI_CONFIG.provider === "local") {
     state.transport = "local";
     setStatus("local", "Offline brain (provider: local)");
+    return;
+  }
+
+  if (AI_CONFIG.provider === "device") {
+    if (!DeviceLlm) {
+      state.transport = "local";
+      setStatus("local", "Not running in the Android app — offline brain");
+      return;
+    }
+    if (await checkDeviceLlmAvailable()) {
+      state.transport = "device";
+      setStatus("device", "On-device model ready");
+    } else {
+      state.transport = "local";
+      setStatus("local", "No on-device model loaded — offline brain");
+    }
     return;
   }
 
@@ -5590,7 +5698,7 @@ const EventReactions = (function () {
   async function aiReaction(event, situation) {
     if (!EventManager.settings().aiReactions) return false;
     if (aiReactionsUsed >= EVENT_TUNING.aiReactionsPerSession) return false;
-    if (AI_CONFIG.provider === "local" || state.transport !== "remote") return false;
+    if (AI_CONFIG.provider === "local" || (state.transport !== "remote" && state.transport !== "device")) return false;
     if (state.busy) return false;
 
     aiReactionsUsed += 1;

@@ -1,8 +1,39 @@
 # Local AI Investigation for Android Companion
 
-**Status:** Research Complete — No Implementation Yet  
+**Status:** Scaffolding built, no inference engine or model wired in yet  
 **Date:** 2026-08-14  
 **Scope:** 2-4B lightweight inference for on-device conversational AI
+
+---
+
+## Implementation Status (added after this research)
+
+The research below led to a Capacitor Android project and a `CompanionLocalLlm`
+plugin scaffold, so the app can actually target Android and the provider
+abstraction has a real `"device"` option — without downloading, bundling, or
+running a model yet:
+
+- `android/` — a real, buildable Capacitor Android project wrapping
+  `index.html`. Verified: `npm run android:debug` produces an installable
+  debug APK via an actual `./gradlew assembleDebug` run.
+- `android/app/src/main/java/ai/companion/pixel/llm/` — the plugin
+  (`CompanionLocalLlmPlugin.kt`), an engine interface (`LlmEngine.kt`), and a
+  `StubLlmEngine` that always reports itself unavailable, because no model or
+  inference dependency is bundled. This is intentional, not a placeholder to
+  fix in a rush — see that package's `README.md` for exactly what swapping in
+  LiteRT-LM (or llama.cpp) later involves.
+- `index.html` — a new `"device"` value for `AI_CONFIG.provider`, wired
+  through `callProvider()` and `detectBackend()` the same way `"proxy"`,
+  `"anthropic"`, and `"openai"` already are. It returns the same
+  `{"response", "emotion"}` JSON shape the cloud providers do, so
+  `parseReply()` needed no changes. When the plugin reports unavailable (the
+  only state possible today), the app falls back to the offline brain exactly
+  as it does for an unconfigured cloud provider.
+
+Still not done, on purpose: no model file anywhere in the repo, no inference
+engine dependency actually resolved, no GPU/NPU delegate wiring, no
+model-download flow. Those are separate decisions (storage, licensing, UX for
+a multi-gigabyte download) that shouldn't ride in on scaffolding.
 
 ---
 

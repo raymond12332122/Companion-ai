@@ -9,6 +9,8 @@ index.html              the whole app — markup, styles, and companion logic
 assets/sprites/*.svg    six expressions: neutral, happy, sad, surprised, angry, thinking
 server/proxy.js         zero-dependency Node backend: serves the app + proxies AI calls
 .env.example            the environment variables the proxy reads
+android/                Capacitor Android shell + the on-device inference plugin scaffold
+scripts/build-www.js    stages index.html + assets into www/ for Capacitor to bundle
 ```
 
 ## Running it
@@ -163,6 +165,38 @@ The model is asked for a single JSON object:
 the sprite on the stage. Replies that arrive as plain prose — or with the older
 `[[mood:x]]` tag — are still parsed, and an unrecognised emotion is dropped rather
 than shown.
+
+## Running on Android
+
+The app ships as a Capacitor shell (`android/`) around the same `index.html` —
+no separate mobile codebase. Build it with:
+
+```bash
+npm install
+npm run android:debug     # stages www/, syncs Capacitor, runs gradlew assembleDebug
+```
+
+The APK lands at `android/app/build/outputs/apk/debug/app-debug.apk`. Building
+requires the Android SDK (`ANDROID_HOME` set, or `android/local.properties`
+pointing `sdk.dir` at it) and a JDK — `npm run cap:sync` alone (no Gradle) works
+without either, and is enough to inspect the staged native project.
+
+### On-device inference (`"device"` provider)
+
+`AI_CONFIG.provider = "device"` routes through a `CompanionLocalLlm` Capacitor
+plugin instead of the network, so the character can run with no data
+connection and no NVIDIA key. **As shipped, this is scaffolding, not a working
+local model:** the plugin and the JS-side provider branch are fully wired, but
+the native engine behind them (`StubLlmEngine`) always reports itself
+unavailable, because no model is bundled. A `"device"` session behaves exactly
+like a cloud provider with no key configured — it reports not-ready and the
+app runs on the offline brain — until a real engine is dropped in.
+
+See `LOCAL_AI_INVESTIGATION.md` for the research behind the recommended engine
+(LiteRT-LM) and model (Llama 3.2 3B, Q4_K_M), and
+`android/app/src/main/java/ai/companion/pixel/llm/README.md` for exactly what
+wiring in a real engine involves — it's a single new class implementing
+`LlmEngine`, swapped in for `StubLlmEngine`; nothing else moves.
 
 ## The companion scene
 
