@@ -346,35 +346,34 @@ class GemmaEngine {
     }
 
     /**
-     * Plain, unmarked text — no `<start_of_turn>`/`<end_of_turn>`.
+     * TEMP DEBUG — iteration 2. No `<start_of_turn>` tokens (iteration 0: the
+     * model produced only 5 confused tokens for a 1413-token double-
+     * templated prompt) AND no "User:"/"Assistant:" labels either
+     * (iteration 1: the model treated those as literal text to continue,
+     * producing a hallucinated multi-turn transcript — "User: Hi\nAssistant:
+     * Okay! Let's give this task some life... User: Hey there..." — instead
+     * of answering once and stopping).
      *
-     * This engine used to hand-embed those as literal characters, which is
-     * wrong for a `.task` bundle: MediaPipe's LLM Inference API applies the
-     * model's own chat template internally for `.task`/`.litertlm` files
-     * (confirmed against flutter_gemma, which wraps this same native API:
-     * "MediaPipe handles chat templates internally" for `.task`, versus
-     * "manual chat template formatting" being required only for raw
-     * `.bin`/`.tflite` weights). Feeding it text that ALSO contains literal
-     * `<start_of_turn>user`/`<end_of_turn>` doesn't skip templating, it
-     * doubles it — the runtime wraps the whole thing again, so the model
-     * sees its own turn markers duplicated and, in testing, garbled and
-     * confused. This exact risk was already called out in the sibling
-     * engine this package deliberately shares no code with — see
-     * ai.companion.pixel.llm.ChatTemplate's PLAIN family and its comment:
-     * "Newer .litertlm bundles can carry their own prompt template and apply
-     * it inside the runtime, in which case adding markers here would double
-     * them up." This is that same PLAIN approach, independently arrived at.
+     * This iteration sends exactly the message content, nothing else added,
+     * matching how MediaPipe's own LLM Inference API examples call
+     * addQueryChunk() — with a raw instruction/question directly, no
+     * chat-formatting syntax of any kind. The working theory is that a
+     * `.task` bundle's own compiled graph applies Gemma's real chat template
+     * (and its real special tokens) to whatever addQueryChunk() receives,
+     * and every hand-rolled format tried so far — real tokens or plain
+     * labels — was interfering with that rather than replacing it.
+     *
+     * Multi-turn history and folding in a system instruction are
+     * deliberately NOT solved here — this targets getting one raw message
+     * answered coherently first. If system text is present it's prepended
+     * unmarked, and prior turns are joined the same way; neither has been
+     * verified to work correctly yet, only the single-message case has.
      */
     private fun formatGemmaPrompt(system: String, messages: List<GemmaMessage>): String {
         val out = StringBuilder()
         if (system.isNotBlank()) out.append(system).append("\n\n")
-        for (message in messages) {
-            val isAssistant = message.role == "assistant" || message.role == "model" || message.role == "bot"
-            val label = if (isAssistant) "Assistant" else "User"
-            out.append(label).append(": ").append(message.content).append("\n")
-        }
-        out.append("Assistant: ")
-        return out.toString()
+        messages.forEach { out.append(it.content).append("\n") }
+        return out.toString().trimEnd('\n')
     }
 
     private fun trimAtGemmaStop(text: String): String {

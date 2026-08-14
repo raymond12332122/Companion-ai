@@ -1795,7 +1795,7 @@ function pushGemmaDebugMessage() {
  * cancelling generation rather than a native option (none exists).
  */
 async function runGemmaMinimalTest(text) {
-  const userText = (text && text.trim()) || "Say hello in one short sentence.";
+  const userText = (text && text.trim()) || "Hi";
 
   if (!DeviceGemma) {
     pushMessage("system", "[Gemma minimal test] DeviceGemma bridge not available — not running in the Android app, or the plugin didn't register.");
@@ -1816,10 +1816,13 @@ async function runGemmaMinimalTest(text) {
     });
     const lines = [
       "[Gemma minimal test] result for: " + JSON.stringify(userText),
-      "Final formatted input: " + (result.finalPrompt || "?"),
+      "Structured input passed to the runtime: " + (result.finalPrompt || "?"),
       "Prompt token count: " + (typeof result.promptTokens === "number" ? result.promptTokens : "?"),
       "Generated token count: " + (typeof result.outputTokens === "number" ? result.outputTokens : "?"),
-      "Raw native output: " + JSON.stringify(result.rawOutput || ""),
+      "Raw output: " + JSON.stringify(result.rawOutput || ""),
+      // The API returns already-decoded text, not token IDs — there's no
+      // separate decode step to show a different value for. Same string.
+      "Decoded output (same value — the API has no separate decode step to intercept): " + JSON.stringify(result.rawOutput || ""),
       "Inference duration: " + (typeof result.inferenceMs === "number" ? result.inferenceMs + " ms" : "?")
     ];
     pushMessage("system", lines.join("\n"));
