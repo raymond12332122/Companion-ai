@@ -304,6 +304,9 @@ class GemmaPlugin : Plugin() {
                     put("rawOutput", timing.rawOutput.take(4000))
                     put("inferenceThread", timing.inferenceThread)
                     put("engineInitialized", true)
+                    put("finalPrompt", timing.finalPrompt.take(6000))
+                    put("promptTokens", timing.promptTokens)
+                    put("outputTokens", timing.outputTokens)
                     put("nativeCompletedAtMs", System.currentTimeMillis())
                 })
             }

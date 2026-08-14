@@ -5,6 +5,7 @@ import android.util.Log
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
 import com.google.mediapipe.tasks.genai.llminference.ProgressListener
+import org.json.JSONObject
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -40,7 +41,10 @@ data class GemmaTiming(
     val inferenceMs: Long,
     val responseProcessingMs: Long,
     val rawOutput: String,
-    val inferenceThread: String
+    val inferenceThread: String,
+    val finalPrompt: String,     // exactly what was passed to addQueryChunk(), unedited
+    val promptTokens: Int,       // LlmInferenceSession.sizeInTokens(finalPrompt) — exact, not estimated
+    val outputTokens: Int        // LlmInferenceSession.sizeInTokens(rawOutput) — exact, not estimated
 )
 
 /**
@@ -66,8 +70,31 @@ class GemmaEngine {
         const val SESSION_TOP_P = 0.95f
     }
 
+    /**
+     * Runs at Process.THREAD_PRIORITY_BACKGROUND, not the JVM-level default
+     * this thread would otherwise inherit. This is the actual fix for
+     * inference dropping UI frames: this thread was already off the main
+     * thread (Capacitor posts every @PluginMethod call to its own background
+     * taskHandler before GemmaPlugin is even entered, and this executor
+     * isolates load()/generate() further still — verified by reading
+     * Bridge.java, not assumed) — the WebView's render thread and this one
+     * were never the same thread. They were, however, scheduled as equals:
+     * on Android, a plain background Thread gets the CFS scheduler's default
+     * niceness, so a CPU-bound thread here competed for cores on equal
+     * footing with whatever renders the next frame. Process.setThreadPriority
+     * moves that footing — the kernel now prefers latency-sensitive threads
+     * over this one when both want the same core at the same instant. It
+     * changes nothing about what gets computed, only how eagerly it yields
+     * the CPU; the model's output is identical either way. Set once, here,
+     * because the thread — not the work submitted to it — is what carries a
+     * priority, and every load()/generate() call runs on this same thread
+     * for its whole life (single-thread executor).
+     */
     private val worker = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "companion-gemma").apply { isDaemon = true }
+        Thread({
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+            runnable.run()
+        }, "companion-gemma").apply { isDaemon = true }
     }
 
     @Volatile private var inference: LlmInference? = null
@@ -234,9 +261,17 @@ class GemmaEngine {
             val returned = future.get() ?: ""
             val inferenceMs = System.currentTimeMillis() - inferenceStart // TEMP DEBUG
             val raw = if (returned.length >= assembled.length) returned else assembled.toString()
-            // TEMP DEBUG — the model's actual output, logged before anything
-            // (stop-sequence trim, JSON/mood-tag extraction) touches it.
-            Log.i(TAG, "Raw Gemma output (${raw.length} chars): " + raw.take(2000))
+            // TEMP DEBUG — the model's actual output and exact token counts,
+            // logged/captured before anything (stop-sequence trim, JSON/mood-
+            // tag extraction) touches it. sizeInTokens() is the real tokenizer
+            // via the API, not an estimate from counting stream callbacks.
+            val promptTokens = try { active.sizeInTokens(prompt) } catch (t: Throwable) { -1 }
+            val outputTokens = try { active.sizeInTokens(raw) } catch (t: Throwable) { -1 }
+            Log.i(
+                TAG,
+                "Raw Gemma output (${raw.length} chars, $outputTokens tokens, prompt was $promptTokens tokens): " +
+                    raw.take(2000)
+            )
 
             val processingStart = System.currentTimeMillis() // TEMP DEBUG
             val trimmed = trimAtGemmaStop(raw)
@@ -245,10 +280,20 @@ class GemmaEngine {
 
             val timing = GemmaTiming(
                 modelLoadMs, promptPrepMs, inferenceMs, responseProcessingMs, raw,
-                inferenceThread = Thread.currentThread().name
+                inferenceThread = Thread.currentThread().name,
+                finalPrompt = prompt,
+                promptTokens = promptTokens,
+                outputTokens = outputTokens
             ) // TEMP DEBUG
             if (parsed.response.isBlank()) {
-                callback.onError("The model returned an empty reply", "empty_reply")
+                // TEMP DEBUG — this is exactly the "empty output" case being
+                // diagnosed, so the raw text (even if blank) and token counts
+                // go out with the error instead of being lost to logcat only.
+                callback.onError(
+                    "The model returned an empty reply. raw=" + JSONObject.quote(raw.take(500)) +
+                        " promptTokens=$promptTokens outputTokens=$outputTokens rawLen=${raw.length}",
+                    "empty_reply"
+                )
             } else {
                 callback.onComplete(parsed.response, parsed.emotion, timing)
             }

@@ -1732,11 +1732,15 @@ const GemmaDebug = {
     this.inferenceMs = null;
     this.responseProcessingMs = null;
     this.nativeToJsMs = null;
+    this.finalPrompt = null;      // exactly what was sent to the native tokenizer, unedited
+    this.promptTokens = null;     // exact count via LlmInferenceSession.sizeInTokens(), not estimated
+    this.outputTokens = null;
     FpsProbe.clear(); // TEMP DEBUG — fresh frame samples for this message only
   },
   summary: function () {
     const yn = function (v) { return v === null ? "?" : (v ? "YES" : "NO"); };
     const ms = function (v) { return v === null || v === undefined ? "?" : v + " ms"; };
+    const tok = function (v) { return v === null || v === undefined || v < 0 ? "?" : String(v); };
     const lines = [
       "[Gemma debug] active provider: " + this.provider,
       "Model loaded: " + yn(this.modelLoaded),
@@ -1762,7 +1766,9 @@ const GemmaDebug = {
         " · response processing: " + ms(this.responseProcessingMs) +
         " · native→JS transfer: " + ms(this.nativeToJsMs)
       );
+      lines.push("Prompt tokens: " + tok(this.promptTokens) + " · Generated tokens: " + tok(this.outputTokens));
       lines.push("Raw native output: " + (this.rawOutput === null ? "?" : JSON.stringify(this.rawOutput)));
+      lines.push("Final prompt sent to native inference:\n" + (this.finalPrompt === null ? "?" : this.finalPrompt));
     }
     lines.push("Main-thread frame timing by phase (A=before native call, B=native inference in flight, D=JS response processing):");
     lines.push(FpsProbe.summary());
@@ -4195,6 +4201,9 @@ async function callProvider(userText, options) {
         GemmaDebug.responseProcessingMs = gemmaResult.responseProcessingMs;
         GemmaDebug.rawOutput = gemmaResult.rawOutput;
         GemmaDebug.inferenceThread = gemmaResult.inferenceThread;
+        GemmaDebug.finalPrompt = gemmaResult.finalPrompt;
+        GemmaDebug.promptTokens = gemmaResult.promptTokens;
+        GemmaDebug.outputTokens = gemmaResult.outputTokens;
         if (typeof gemmaResult.engineInitialized === "boolean") {
           GemmaDebug.engineInitialized = gemmaResult.engineInitialized;
         }
