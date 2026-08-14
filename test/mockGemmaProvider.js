@@ -26,7 +26,14 @@ const CANNED_REPLIES = new Map([
   ["Hi", "Hello!"],
   ["What is your name?", "I'm Gg."],
   ["What is 2 + 2?", "4"],
-  ["My name is Raymond", "Nice to meet you, Raymond."]
+  ["My name is Raymond", "Nice to meet you, Raymond."],
+  // The four fixed inputs runGemmaControlledTest() sends (index.html's
+  // GEMMA_CONTROLLED_TESTS) — distinct canned replies so a mock-based run
+  // of that command demonstrates genuinely differing outputs, the same
+  // property a real device run is checked for.
+  ["Say the word APPLE.", "APPLE"],
+  ["Say the word BANANA.", "BANANA"],
+  ["Write one short sentence about a spaceship.", "The spaceship drifted quietly past the rings of Saturn."]
 ]);
 
 const FAILURE_MODES = [
@@ -175,6 +182,14 @@ function createMockGemmaProvider(opts) {
       const lastUser = [...messages].reverse().find(function (m) { return m.role !== "assistant"; });
       const userText = lastUser ? String(lastUser.content).trim() : "";
       const finalPrompt = (system ? system + "\n\n" : "") + messages.map(function (m) { return m.content; }).join("\n");
+      // Mirrors GemmaEngine.kt's actual sampling config: SESSION_TOP_K=40,
+      // SESSION_TOP_P=0.95f (constants there), temperature clamped the same
+      // way (coerceIn(0.05f, 2.0f)), a fresh seed per call.
+      const requestedTemp = typeof (options && options.temperature) === "number" ? options.temperature : 0.85;
+      const actualTemperature = Math.min(2.0, Math.max(0.05, requestedTemp));
+      const actualSeed = Math.floor(Math.random() * 2147483647);
+      const historyIncluded = messages.length > 1;
+      const systemIncluded = Boolean(system);
 
       if (mode === "model_unavailable" || mode === "provider_unavailable") {
         throw Object.assign(new Error("No Gemma model imported yet."), { code: "model_load_failed" });
@@ -235,6 +250,15 @@ function createMockGemmaProvider(opts) {
         finalPrompt: finalPrompt,
         promptTokens: Math.max(1, Math.round(finalPrompt.length / 4)),
         outputTokens: Math.max(0, Math.round(responseText.length / 4)),
+        temperature: actualTemperature,
+        topK: 40,
+        topP: 0.95,
+        randomSeed: actualSeed,
+        samplingEnabled: true,
+        historyIncluded: historyIncluded,
+        systemIncluded: systemIncluded,
+        processedResponse: responseText,
+        processedEmotion: null,
         nativeCompletedAtMs: nowMs()
       };
     }

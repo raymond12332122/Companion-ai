@@ -334,6 +334,66 @@ test("diagnostics report: /gemma-diagnostics is actually wired into runCommand()
 });
 
 // ---------------------------------------------------------------------
+// Controlled test mode (/gemma-controlled-test — TEST 1-4)
+// ---------------------------------------------------------------------
+
+test("controlled test: runs all 4 fixed inputs and reports differing outputs", async () => {
+  const { sandbox, mock } = setup();
+  await mock.loadModel();
+  const before = sandbox.__companion.state.messages.length;
+  await sandbox.runGemmaControlledTest();
+  const msgs = sandbox.__companion.state.messages.slice(before);
+  const report = msgs.map((m) => m.text).join("\n---\n");
+
+  ["APPLE", "BANANA", "spaceship"].forEach((needle) => {
+    assert.ok(report.includes(needle), "report should mention \"" + needle + "\" from its canned reply");
+  });
+  assert.ok(report.includes("TEST 1"), "should report all 4 tests by number");
+  assert.ok(report.includes("TEST 4"));
+  assert.ok(report.includes("Comparison: raw outputs DIFFER"),
+    "with distinct canned replies per input, the mock must not report identical outputs");
+});
+
+test("controlled test: each call gets a fresh session (independent generate() calls, not one shared)", async () => {
+  const { sandbox, mock } = setup();
+  await mock.loadModel();
+  const seenCalls = [];
+  const real = mock.generate.bind(mock);
+  mock.generate = async (opts) => { seenCalls.push(opts.messages.map((m) => m.content).join("|")); return real(opts); };
+
+  await sandbox.runGemmaControlledTest();
+
+  assert.strictEqual(seenCalls.length, 4, "must issue exactly one generate() call per fixed input");
+  const uniqueCalls = new Set(seenCalls);
+  assert.strictEqual(uniqueCalls.size, 4, "each call's message content must be independent, not accumulated history: " + JSON.stringify(seenCalls));
+});
+
+test("controlled test: model_unavailable is reported once, not attempted 4 times", async () => {
+  const { sandbox } = setup({ mode: "model_unavailable" });
+  const before = sandbox.__companion.state.messages.length;
+  await sandbox.runGemmaControlledTest();
+  const msgs = sandbox.__companion.state.messages.slice(before);
+  assert.strictEqual(msgs.length, 1, "should report unavailability once and stop, not run 4 doomed attempts");
+});
+
+test("controlled test: detects literal transcript-continuation leakage (User:/Assistant:) when present", async () => {
+  const { sandbox, mock } = setup({
+    replies: new Map([
+      ["Say the word APPLE.", "User: Say the word APPLE.\nAssistant: Sure, APPLE."],
+      ["Say the word BANANA.", "BANANA"],
+      ["What is 2 + 2?", "4"],
+      ["Write one short sentence about a spaceship.", "A spaceship soared."]
+    ])
+  });
+  await mock.loadModel();
+  const before = sandbox.__companion.state.messages.length;
+  await sandbox.runGemmaControlledTest();
+  const report = sandbox.__companion.state.messages.slice(before).map((m) => m.text).join("\n");
+  assert.ok(report.includes("WARNING"), "must flag transcript-leakage text when a raw output contains it");
+  assert.ok(report.includes("chat template"), "should point at the chat template, not personality, per the critical diagnostic rule");
+});
+
+// ---------------------------------------------------------------------
 // Persistence / reload
 // ---------------------------------------------------------------------
 

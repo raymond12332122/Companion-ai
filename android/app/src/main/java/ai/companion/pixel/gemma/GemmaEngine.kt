@@ -53,7 +53,28 @@ data class GemmaTiming(
     val inferenceThread: String,
     val finalPrompt: String,     // exactly what was passed to addQueryChunk(), unedited
     val promptTokens: Int,       // LlmInferenceSession.sizeInTokens(finalPrompt) — exact, not estimated
-    val outputTokens: Int        // LlmInferenceSession.sizeInTokens(rawOutput) — exact, not estimated
+    val outputTokens: Int,       // LlmInferenceSession.sizeInTokens(rawOutput) — exact, not estimated
+    // TEMP DEBUG — the actual sampling configuration used for this call, not
+    // the request's inputs: temperature is clamped (coerceIn) before use, and
+    // randomSeed is generated internally (System.nanoTime()), so neither is
+    // otherwise observable from outside this function.
+    val temperature: Float,
+    val topK: Int,
+    val topP: Float,
+    val randomSeed: Int,
+    // "Sampling" here always means topK/topP/temperature-based stochastic
+    // decoding — this runtime exposes no separate greedy-vs-sampling toggle
+    // (confirmed: LlmInferenceSessionOptions.Builder has no such option), so
+    // this is always true. Reported anyway so a caller doesn't have to know
+    // that to interpret the report; see GemmaPlugin.kt's getModelDiagnostics
+    // doc for the equivalent reasoning about engineInitialized/loaded.
+    val samplingEnabled: Boolean,
+    val historyIncluded: Boolean, // request.messages had more than just the current turn
+    val systemIncluded: Boolean,  // request.system was non-blank
+    // The response actually handed to the caller after GemmaReply.extract()
+    // and trimAtGemmaStop() — distinct from rawOutput, which is before both.
+    val processedResponse: String,
+    val processedEmotion: String?
 )
 
 /**
@@ -245,11 +266,18 @@ class GemmaEngine {
         val prompt = formatGemmaPrompt(request.system, request.messages)
         val promptPrepMs = System.currentTimeMillis() - promptStart // TEMP DEBUG
 
+        // TEMP DEBUG — captured so the diagnostic report can show the actual
+        // configuration used, not just the request's raw inputs.
+        val actualTemperature = request.temperature.coerceIn(0.05f, 2.0f)
+        val actualSeed = System.nanoTime().toInt()
+        val historyIncluded = request.messages.size > 1
+        val systemIncluded = request.system.isNotBlank()
+
         val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
             .setTopK(SESSION_TOP_K)
             .setTopP(SESSION_TOP_P)
-            .setTemperature(request.temperature.coerceIn(0.05f, 2.0f))
-            .setRandomSeed(System.nanoTime().toInt())
+            .setTemperature(actualTemperature)
+            .setRandomSeed(actualSeed)
             .build()
 
         val active = LlmInferenceSession.createFromOptions(engine, sessionOptions)
@@ -321,7 +349,16 @@ class GemmaEngine {
                 inferenceThread = Thread.currentThread().name,
                 finalPrompt = prompt,
                 promptTokens = promptTokens,
-                outputTokens = outputTokens
+                outputTokens = outputTokens,
+                temperature = actualTemperature,
+                topK = SESSION_TOP_K,
+                topP = SESSION_TOP_P,
+                randomSeed = actualSeed,
+                samplingEnabled = true,
+                historyIncluded = historyIncluded,
+                systemIncluded = systemIncluded,
+                processedResponse = parsed.response,
+                processedEmotion = parsed.emotion
             ) // TEMP DEBUG
             if (parsed.response.isBlank()) {
                 // TEMP DEBUG — this is exactly the "empty output" case being
@@ -329,7 +366,9 @@ class GemmaEngine {
                 // go out with the error instead of being lost to logcat only.
                 callback.onError(
                     "The model returned an empty reply. raw=" + JSONObject.quote(raw.take(500)) +
-                        " promptTokens=$promptTokens outputTokens=$outputTokens rawLen=${raw.length}",
+                        " promptTokens=$promptTokens outputTokens=$outputTokens rawLen=${raw.length}" +
+                        " temperature=$actualTemperature topK=$SESSION_TOP_K topP=$SESSION_TOP_P seed=$actualSeed" +
+                        " historyIncluded=$historyIncluded systemIncluded=$systemIncluded",
                     "empty_reply"
                 )
             } else {

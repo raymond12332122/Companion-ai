@@ -1747,12 +1747,24 @@ const GemmaDebug = {
     this.finalPrompt = null;      // exactly what was sent to the native tokenizer, unedited
     this.promptTokens = null;     // exact count via LlmInferenceSession.sizeInTokens(), not estimated
     this.outputTokens = null;
+    // TEMP DEBUG — the actual sampling configuration used, and whether
+    // history/system text were folded into this call at all.
+    this.temperature = null;
+    this.topK = null;
+    this.topP = null;
+    this.randomSeed = null;
+    this.samplingEnabled = null;
+    this.historyIncluded = null;
+    this.systemIncluded = null;
+    this.processedResponse = null; // after GemmaReply.extract()/trim — distinct from rawOutput
+    this.processedEmotion = null;
     FpsProbe.clear(); // TEMP DEBUG — fresh frame samples for this message only
   },
   summary: function () {
     const yn = function (v) { return v === null ? "?" : (v ? "YES" : "NO"); };
     const ms = function (v) { return v === null || v === undefined ? "?" : v + " ms"; };
     const tok = function (v) { return v === null || v === undefined || v < 0 ? "?" : String(v); };
+    const num = function (v) { return v === null || v === undefined ? "?" : String(v); };
     const lines = [
       "[Gemma debug] active provider: " + this.provider,
       // Unmissable in debug output whenever the dev/test mock plugin is
@@ -1771,6 +1783,8 @@ const GemmaDebug = {
       "Inference thread: " + (this.inferenceThread || "?"),
       "Native inference started: " + yn(this.inferenceStarted),
       "Native inference completed: " + yn(this.inferenceCompleted),
+      "Conversation history included: " + yn(this.historyIncluded),
+      "System instructions included: " + yn(this.systemIncluded),
       "Fallback used: " + yn(this.fallbackTriggered)
     ];
     if (this.fallbackTriggered) lines.push("Fallback/failure reason: " + (this.fallbackReason || "(none recorded)"));
@@ -1784,7 +1798,16 @@ const GemmaDebug = {
         " · native→JS transfer: " + ms(this.nativeToJsMs)
       );
       lines.push("Prompt tokens: " + tok(this.promptTokens) + " · Generated tokens: " + tok(this.outputTokens));
+      lines.push(
+        "Sampling enabled: " + yn(this.samplingEnabled) +
+        " · Temperature: " + num(this.temperature) +
+        " · Top-K: " + num(this.topK) +
+        " · Top-P: " + num(this.topP) +
+        " · Random seed: " + num(this.randomSeed)
+      );
       lines.push("Raw native output: " + (this.rawOutput === null ? "?" : JSON.stringify(this.rawOutput)));
+      lines.push("Final decoded/processed output: " + (this.processedResponse === null ? "?" : JSON.stringify(this.processedResponse)) +
+        (this.processedEmotion ? " (emotion: " + this.processedEmotion + ")" : ""));
       lines.push("Final prompt sent to native inference:\n" + (this.finalPrompt === null ? "?" : this.finalPrompt));
     }
     lines.push("Main-thread frame timing by phase (A=before native call, B=native inference in flight, D=JS response processing):");
@@ -1885,6 +1908,102 @@ async function runGemmaDiagnosticsReport() {
     pushMessage("system", "[Gemma diagnostics] FAILED — " +
       (err && err.kind ? err.kind + ": " : "") + (err && err.message ? err.message : String(err)));
   }
+}
+
+/**
+ * TEMP DEBUG — the "/gemma-controlled-test" slash command. Runs four fixed,
+ * independent inputs, each with its own DeviceGemma.generate() call (a fresh
+ * LlmInferenceSession per call already, per GemmaEngine.kt's design — "fresh
+ * session where appropriate" from the spec is already how every call here
+ * works, not something added specially for this test), and reports each
+ * raw output plus an automatic comparison. The point isn't exact wording —
+ * it's whether four different inputs produce four outputs that actually
+ * correspond to them, per the CRITICAL DIAGNOSTIC RULE this exists to serve.
+ */
+const GEMMA_CONTROLLED_TESTS = [
+  "Say the word APPLE.",
+  "Say the word BANANA.",
+  "What is 2 + 2?",
+  "Write one short sentence about a spaceship."
+];
+
+async function runGemmaControlledTest() {
+  if (!DeviceGemma) {
+    pushMessage("system", "[Gemma controlled test] DeviceGemma bridge not available — not running in the Android app, or the plugin didn't register.");
+    return;
+  }
+  if (!(await checkGemmaAvailable())) {
+    pushMessage("system", "[Gemma controlled test] No Gemma model available (" +
+      (gemmaStatus && gemmaStatus.reason ? gemmaStatus.reason : "unknown reason") + "). Import one in ⚙ → Local Gemma first.");
+    return;
+  }
+
+  pushMessage("system", "[Gemma controlled test] Running " + GEMMA_CONTROLLED_TESTS.length +
+    " independent inputs, each its own fresh inference call, empty system prompt, capped at 60 output tokens. " +
+    "This determines whether different inputs actually reach the model and produce different raw outputs.");
+
+  const results = [];
+  for (let i = 0; i < GEMMA_CONTROLLED_TESTS.length; i++) {
+    const input = GEMMA_CONTROLLED_TESTS[i];
+    try {
+      const r = await DeviceGemma.generate({
+        system: "",
+        messages: [{ role: "user", content: input }],
+        temperature: 0.85,
+        maxOutputTokens: 60
+      });
+      results.push({
+        input: input, ok: true,
+        raw: r.rawOutput, tokens: r.outputTokens, ms: r.inferenceMs, finalPrompt: r.finalPrompt
+      });
+    } catch (err) {
+      results.push({ input: input, ok: false, error: (err && err.kind ? err.kind + ": " : "") + (err && err.message ? err.message : String(err)) });
+    }
+  }
+
+  const lines = ["[Gemma controlled test] results:"];
+  results.forEach(function (r, i) {
+    lines.push("");
+    lines.push("TEST " + (i + 1) + " — input: " + JSON.stringify(r.input));
+    if (r.ok) {
+      lines.push("  raw output: " + JSON.stringify(r.raw));
+      lines.push("  generated tokens: " + (typeof r.tokens === "number" ? r.tokens : "?") +
+        " · inference: " + (typeof r.ms === "number" ? r.ms + " ms" : "?"));
+    } else {
+      lines.push("  FAILED: " + r.error);
+    }
+  });
+
+  // TEMP DEBUG — the automatic comparison the CRITICAL DIAGNOSTIC RULE asks
+  // for: same-output-for-every-input points at prompt construction/session
+  // reuse/fixed generation state, not model quality.
+  const rawOutputs = results.filter(function (r) { return r.ok; }).map(function (r) { return r.raw; });
+  lines.push("");
+  if (rawOutputs.length < 2) {
+    lines.push("Comparison: fewer than 2 successful results — not enough to compare.");
+  } else if (rawOutputs.every(function (o) { return o === rawOutputs[0]; })) {
+    lines.push("Comparison: ALL raw outputs are IDENTICAL across different inputs. " +
+      "Per the critical diagnostic rule, investigate prompt construction, native API usage, " +
+      "session reuse, KV/cache reuse, incorrect input binding, fixed generation state, or " +
+      "sampling configuration — this is not a content/personality problem.");
+  } else {
+    lines.push("Comparison: raw outputs DIFFER between inputs — the model is receiving and " +
+      "reacting to different inputs at the native layer. If the on-screen reply ever looks " +
+      "identical regardless of input despite this, that points to JS-side response handling, " +
+      "caching, state management, or UI rendering — not native inference.");
+  }
+
+  const leaked = results.filter(function (r) {
+    return r.ok && /(^|\n)\s*(User|Assistant)\s*:/i.test(r.raw);
+  });
+  if (leaked.length) {
+    lines.push("");
+    lines.push("WARNING: " + leaked.length + " of " + results.length + " raw outputs contain literal " +
+      "\"User:\"/\"Assistant:\" text — the model may be continuing a transcript instead of answering. " +
+      "Investigate the Gemma chat template and turn formatting, not personality instructions.");
+  }
+
+  pushMessage("system", lines.join("\n"));
 }
 
 /* =========================================================================
@@ -3962,6 +4081,15 @@ function runCommand(raw) {
     return true;
   }
 
+  // TEMP DEBUG — four independent, fixed inputs (APPLE / BANANA / 2+2 /
+  // spaceship), each a fresh inference call, to determine whether different
+  // inputs actually reach the model and produce outputs that correspond to
+  // them. See runGemmaControlledTest() and GEMMA_CONTROLLED_TESTS above.
+  if (command === "/gemma-controlled-test") {
+    runGemmaControlledTest();
+    return true;
+  }
+
   if (command.charAt(0) === "/") {
     pushMessage("system", "I don't know " + command + ". Try /help for the full list.");
     return true;
@@ -4333,6 +4461,15 @@ async function callProvider(userText, options) {
         GemmaDebug.finalPrompt = gemmaResult.finalPrompt;
         GemmaDebug.promptTokens = gemmaResult.promptTokens;
         GemmaDebug.outputTokens = gemmaResult.outputTokens;
+        GemmaDebug.temperature = gemmaResult.temperature;
+        GemmaDebug.topK = gemmaResult.topK;
+        GemmaDebug.topP = gemmaResult.topP;
+        GemmaDebug.randomSeed = gemmaResult.randomSeed;
+        GemmaDebug.samplingEnabled = gemmaResult.samplingEnabled;
+        GemmaDebug.historyIncluded = gemmaResult.historyIncluded;
+        GemmaDebug.systemIncluded = gemmaResult.systemIncluded;
+        GemmaDebug.processedResponse = gemmaResult.processedResponse;
+        GemmaDebug.processedEmotion = gemmaResult.processedEmotion;
         if (typeof gemmaResult.engineInitialized === "boolean") {
           GemmaDebug.engineInitialized = gemmaResult.engineInitialized;
         }
