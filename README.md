@@ -100,6 +100,37 @@ wires and needs its own adapter.
 For NVIDIA, create a key at [build.nvidia.com](https://build.nvidia.com) and pick a
 model id from its catalogue.
 
+### Model Selection (NVIDIA)
+
+The companion has access to two NVIDIA models. **See `MODEL_ANALYSIS.md` for detailed
+comparison.** Quality tested on 10 conversational scenarios: memory integration,
+emotional authenticity, character consistency, humor, and disagreement handling.
+
+| Model | Quality | Speed | Reliability | Notes |
+| --- | --- | --- | --- | --- |
+| `meta/llama-3.1-8b-instruct` | good | fast | 100% | Current; generic but reliable |
+| `meta/llama-3.1-70b-instruct` | **excellent** | slower | 70% | **Recommended**; much better character depth |
+
+**Recommendation:** Upgrade to `meta/llama-3.1-70b-instruct` for noticeably better conversation quality.
+The 70B model produces richer emotional expressions, better memory integration, more natural teasing,
+and stronger personality. Set in `.env`:
+
+```bash
+COMPANION_MODEL=meta/llama-3.1-70b-instruct
+```
+
+If the 70B model experiences timeouts, the app falls back gracefully to the offline brain. Check
+your NVIDIA account at [build.nvidia.com](https://build.nvidia.com) to verify the 70B model is
+available for your API key's tier.
+
+**Testing models:** Run `node server/test-models.js` to compare the two models on the test suite:
+
+```bash
+COMPANION_API_KEY=$(grep COMPANION_API_KEY .env | cut -d= -f2) node server/test-models.js
+```
+
+Results are saved to `server/test-results.json` for review.
+
 ### Backend endpoints
 
 | Endpoint | Purpose |
