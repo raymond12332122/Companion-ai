@@ -393,6 +393,35 @@ test("controlled test: detects literal transcript-continuation leakage (User:/As
   assert.ok(report.includes("chat template"), "should point at the chat template, not personality, per the critical diagnostic rule");
 });
 
+test("controlled test: sets state.busy/disables send for its duration and restores it after, so ambient aiReaction() can't steal the native lock mid-test", async () => {
+  const { sandbox, mock, c } = setup();
+  await mock.loadModel();
+  assert.strictEqual(c.state.busy, false, "must start idle");
+
+  const pending = sandbox.runGemmaControlledTest();
+  // runGemmaControlledTest() awaits checkGemmaAvailable() (its own async
+  // hop through the mock's isAvailable()) before reaching setBusy(true), so
+  // busy doesn't flip on the same microtask as the call above — poll a few
+  // setImmediate ticks rather than asserting synchronously.
+  let sawBusy = false;
+  for (let i = 0; i < 20 && !sawBusy; i++) {
+    if (c.state.busy) { sawBusy = true; break; }
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.strictEqual(sawBusy, true, "must become busy while the controlled test is running (setBusy(true), same mechanism as chat sends)");
+  await pending;
+  assert.strictEqual(c.state.busy, false, "must return to idle after the controlled test finishes (setBusy(false) in the finally block)");
+});
+
+test("controlled test: leaves state.busy false if DeviceGemma bridge is unavailable (early-return guard, no cleanup needed)", async () => {
+  const sandbox = require("./harness.js").loadApp({ silent: true, mockGemma: undefined });
+  const c = sandbox.__companion;
+  assert.strictEqual(c.DeviceGemma, null, "DeviceGemma must be unavailable for this case");
+  assert.strictEqual(c.state.busy, false, "must start idle");
+  await sandbox.runGemmaControlledTest();
+  assert.strictEqual(c.state.busy, false, "must remain idle when the test never actually started");
+});
+
 // ---------------------------------------------------------------------
 // Persistence / reload
 // ---------------------------------------------------------------------

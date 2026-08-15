@@ -1942,68 +1942,81 @@ async function runGemmaControlledTest() {
     " independent inputs, each its own fresh inference call, empty system prompt, capped at 60 output tokens. " +
     "This determines whether different inputs actually reach the model and produce different raw outputs.");
 
-  const results = [];
-  for (let i = 0; i < GEMMA_CONTROLLED_TESTS.length; i++) {
-    const input = GEMMA_CONTROLLED_TESTS[i];
-    try {
-      const r = await DeviceGemma.generate({
-        system: "",
-        messages: [{ role: "user", content: input }],
-        temperature: 0.85,
-        maxOutputTokens: 60
-      });
-      results.push({
-        input: input, ok: true,
-        raw: r.rawOutput, tokens: r.outputTokens, ms: r.inferenceMs, finalPrompt: r.finalPrompt
-      });
-    } catch (err) {
-      results.push({ input: input, ok: false, error: (err && err.kind ? err.kind + ": " : "") + (err && err.message ? err.message : String(err)) });
+  // Exclusive against aiReaction() (ambient EventManager events — idle,
+  // day/night, return-from-away, battery, ...) for the duration of this
+  // test. GemmaEngine.kt's native `generating` AtomicBoolean is shared
+  // across ALL callers, so an ambient reaction firing mid-test steals the
+  // native lock and this test observes a spurious "busy" failure that has
+  // nothing to do with the model itself. setBusy(true) blocks
+  // aiReaction()'s own `if (state.busy) return false;` guard the same way
+  // it already blocks a second chat-composer send.
+  setBusy(true);
+  try {
+    const results = [];
+    for (let i = 0; i < GEMMA_CONTROLLED_TESTS.length; i++) {
+      const input = GEMMA_CONTROLLED_TESTS[i];
+      try {
+        const r = await DeviceGemma.generate({
+          system: "",
+          messages: [{ role: "user", content: input }],
+          temperature: 0.85,
+          maxOutputTokens: 60
+        });
+        results.push({
+          input: input, ok: true,
+          raw: r.rawOutput, tokens: r.outputTokens, ms: r.inferenceMs, finalPrompt: r.finalPrompt
+        });
+      } catch (err) {
+        results.push({ input: input, ok: false, error: (err && err.kind ? err.kind + ": " : "") + (err && err.message ? err.message : String(err)) });
+      }
     }
-  }
 
-  const lines = ["[Gemma controlled test] results:"];
-  results.forEach(function (r, i) {
+    const lines = ["[Gemma controlled test] results:"];
+    results.forEach(function (r, i) {
+      lines.push("");
+      lines.push("TEST " + (i + 1) + " — input: " + JSON.stringify(r.input));
+      if (r.ok) {
+        lines.push("  raw output: " + JSON.stringify(r.raw));
+        lines.push("  generated tokens: " + (typeof r.tokens === "number" ? r.tokens : "?") +
+          " · inference: " + (typeof r.ms === "number" ? r.ms + " ms" : "?"));
+      } else {
+        lines.push("  FAILED: " + r.error);
+      }
+    });
+
+    // TEMP DEBUG — the automatic comparison the CRITICAL DIAGNOSTIC RULE asks
+    // for: same-output-for-every-input points at prompt construction/session
+    // reuse/fixed generation state, not model quality.
+    const rawOutputs = results.filter(function (r) { return r.ok; }).map(function (r) { return r.raw; });
     lines.push("");
-    lines.push("TEST " + (i + 1) + " — input: " + JSON.stringify(r.input));
-    if (r.ok) {
-      lines.push("  raw output: " + JSON.stringify(r.raw));
-      lines.push("  generated tokens: " + (typeof r.tokens === "number" ? r.tokens : "?") +
-        " · inference: " + (typeof r.ms === "number" ? r.ms + " ms" : "?"));
+    if (rawOutputs.length < 2) {
+      lines.push("Comparison: fewer than 2 successful results — not enough to compare.");
+    } else if (rawOutputs.every(function (o) { return o === rawOutputs[0]; })) {
+      lines.push("Comparison: ALL raw outputs are IDENTICAL across different inputs. " +
+        "Per the critical diagnostic rule, investigate prompt construction, native API usage, " +
+        "session reuse, KV/cache reuse, incorrect input binding, fixed generation state, or " +
+        "sampling configuration — this is not a content/personality problem.");
     } else {
-      lines.push("  FAILED: " + r.error);
+      lines.push("Comparison: raw outputs DIFFER between inputs — the model is receiving and " +
+        "reacting to different inputs at the native layer. If the on-screen reply ever looks " +
+        "identical regardless of input despite this, that points to JS-side response handling, " +
+        "caching, state management, or UI rendering — not native inference.");
     }
-  });
 
-  // TEMP DEBUG — the automatic comparison the CRITICAL DIAGNOSTIC RULE asks
-  // for: same-output-for-every-input points at prompt construction/session
-  // reuse/fixed generation state, not model quality.
-  const rawOutputs = results.filter(function (r) { return r.ok; }).map(function (r) { return r.raw; });
-  lines.push("");
-  if (rawOutputs.length < 2) {
-    lines.push("Comparison: fewer than 2 successful results — not enough to compare.");
-  } else if (rawOutputs.every(function (o) { return o === rawOutputs[0]; })) {
-    lines.push("Comparison: ALL raw outputs are IDENTICAL across different inputs. " +
-      "Per the critical diagnostic rule, investigate prompt construction, native API usage, " +
-      "session reuse, KV/cache reuse, incorrect input binding, fixed generation state, or " +
-      "sampling configuration — this is not a content/personality problem.");
-  } else {
-    lines.push("Comparison: raw outputs DIFFER between inputs — the model is receiving and " +
-      "reacting to different inputs at the native layer. If the on-screen reply ever looks " +
-      "identical regardless of input despite this, that points to JS-side response handling, " +
-      "caching, state management, or UI rendering — not native inference.");
+    const leaked = results.filter(function (r) {
+      return r.ok && /(^|\n)\s*(User|Assistant)\s*:/i.test(r.raw);
+    });
+    if (leaked.length) {
+      lines.push("");
+      lines.push("WARNING: " + leaked.length + " of " + results.length + " raw outputs contain literal " +
+        "\"User:\"/\"Assistant:\" text — the model may be continuing a transcript instead of answering. " +
+        "Investigate the Gemma chat template and turn formatting, not personality instructions.");
+    }
+
+    pushMessage("system", lines.join("\n"));
+  } finally {
+    setBusy(false);
   }
-
-  const leaked = results.filter(function (r) {
-    return r.ok && /(^|\n)\s*(User|Assistant)\s*:/i.test(r.raw);
-  });
-  if (leaked.length) {
-    lines.push("");
-    lines.push("WARNING: " + leaked.length + " of " + results.length + " raw outputs contain literal " +
-      "\"User:\"/\"Assistant:\" text — the model may be continuing a transcript instead of answering. " +
-      "Investigate the Gemma chat template and turn formatting, not personality instructions.");
-  }
-
-  pushMessage("system", lines.join("\n"));
 }
 
 /* =========================================================================
