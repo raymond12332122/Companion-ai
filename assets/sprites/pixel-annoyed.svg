@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Pixel looking annoyed">
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#ffe4d6"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="86" r="66" fill="#e0784f" opacity=".2"/>
+  <line x1="80" y1="44" x2="80" y2="26" stroke="#a4471f" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="80" cy="20" r="7" fill="#f3a97e" stroke="#a4471f" stroke-width="3"/>
+  <rect x="18" y="76" width="12" height="26" rx="6" fill="#f6c9ac" stroke="#a4471f" stroke-width="4"/>
+  <rect x="130" y="76" width="12" height="26" rx="6" fill="#f6c9ac" stroke="#a4471f" stroke-width="4"/>
+  <rect x="30" y="42" width="100" height="88" rx="30" fill="url(#shell)" stroke="#a4471f" stroke-width="4"/>
+  <path d="M50 72 l20 4" stroke="#5c2810" stroke-width="6" stroke-linecap="round"/>
+  <path d="M110 72 l-20 4" stroke="#5c2810" stroke-width="6" stroke-linecap="round"/>
+  <line x1="61" y1="90" x2="73" y2="90" stroke="#5c2810" stroke-width="6" stroke-linecap="round"/>
+  <line x1="87" y1="90" x2="99" y2="90" stroke="#5c2810" stroke-width="6" stroke-linecap="round"/>
+  <path d="M62 114 q18 -4 36 0" fill="none" stroke="#5c2810" stroke-width="5" stroke-linecap="round"/>
+</svg>

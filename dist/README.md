@@ -1,0 +1,89 @@
+# Prebuilt APK
+
+`companion-ai-debug.apk` — 60 MB, debug-signed, universal (`arm64-v8a` +
+`x86_64`).
+
+This is here so the app can be installed on a phone with no computer in the
+loop: download it from GitHub in the phone's browser and open it. There is no
+`adb` step.
+
+```
+https://github.com/raymond12332122/Companion-ai/raw/refs/heads/claude/ai-companion-buddy-jvj4bq/dist/companion-ai-debug.apk
+```
+
+SHA-256: `8aab503cc50e50438459dbe2123966feff79d7cb6ef2e84649bc01fede11c31c`
+
+Android will ask permission to install from whatever app opened the file
+(Chrome, or the file manager) — that prompt is expected for anything not from
+the Play Store.
+
+## Why universal, not arm64-only
+
+An arm64-only build is possible (`abiFilters 'arm64-v8a'` in
+`android/app/build.gradle`) and halves the download, but producing one by
+manually stripping `x86_64` out of the universal APK requires `zipalign` and
+`apksigner` to re-seal the archive correctly — without them, a plain
+unzip/re-zip breaks the APK Signing Block and the result fails to install.
+Those tools aren't available in every build environment this project gets
+built from, so this APK is shipped exactly as `assembleDebug` produces it:
+unmodified, and therefore guaranteed to install.
+
+## Then what
+
+The APK contains no model. Two independent on-device engines are built in:
+
+- **Local AI** (`android/.../llm/`) — the original `CompanionLocalLlm`
+  Capacitor plugin.
+- **Local Gemma** (`android/.../gemma/`) — a separate, self-contained
+  `CompanionGemma` Capacitor plugin, its own model slot, built after Local
+  AI's plugin registration couldn't be confirmed reaching the WebView on a
+  real device. It runs the same MediaPipe/LiteRT-LM runtime independently.
+
+Download a `.task` bundle anywhere on the phone, then in the app:
+
+> ⚙ (on the character's stage) → **Local Gemma** → **Import model**
+
+That opens the system file picker and copies the file into app storage. No
+permission, no root, no cable. Start with `gemma3-1b-it-int4.task` (529 MB)
+from [litert-community](https://huggingface.co/litert-community). With no
+model the app says so in the status pill and runs on the offline brain.
+
+Whichever engine actually answers depends on `AI_CONFIG.provider` in
+`index.html` — this build has it set to `"gemma"`, so the app runs on Local
+Gemma once a model is imported (`"device"` selects the original Local AI
+plugin instead, `"proxy"` the cloud backend).
+
+### Diagnostic chat commands (temporary)
+
+Three commands typed into the chat box, for testing without a computer:
+
+- `/gemma-minimal-test [text]` — bypasses personality, memory, history, and
+  every other companion system; sends exactly one message (default `"Hi"`)
+  with an empty system prompt straight to the plugin, capped at 60 output
+  tokens, and reports the exact input sent, token counts, raw output, and
+  timing.
+- `/gemma-diagnostics` — reports the imported model's filename, size,
+  SHA-256, on-device path, runtime version, backend (CPU/GPU), and
+  loaded/engine-initialized state. Never shows model contents.
+- `/gemma-controlled-test` — sends four fixed inputs ("Say the word APPLE.",
+  "Say the word BANANA.", "What is 2 + 2?", "Write one short sentence about
+  a spaceship.") as four independent, freshly-sessioned calls, and reports
+  each one's raw output, token counts, and timing alongside the full
+  sampling config (temperature/topK/topP/seed, history/system-included
+  flags). It automatically flags whether the four raw outputs are
+  suspiciously identical (points at prompt construction / session reuse on
+  the native side) versus genuinely differ but the UI shows the same reply
+  anyway (points at JS-side response handling), and separately warns if any
+  raw output contains a literal `User:`/`Assistant:` transcript-continuation
+  (points at the chat template/turn formatting, not personality).
+
+Every real reply (when `AI_CONFIG.provider` is `"gemma"`) also gets a debug
+block after it: active provider, model state, per-stage timing, exact raw
+model output, and main-thread frame timing by phase — see `GemmaDebug` in
+`index.html`.
+
+## Housekeeping
+
+A 60 MB binary in git is not where a release artifact belongs long-term. It is
+committed because it is currently the only way to get the file onto the phone
+that built it. Once there is a release flow, delete this directory.

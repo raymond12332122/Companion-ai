@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Pixel looking chaotic">
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#efe0ff"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="86" r="66" fill="#a855f7" opacity=".22"/>
+  <line x1="80" y1="44" x2="92" y2="20" stroke="#7e22ce" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="94" cy="15" r="7" fill="#4ade80" stroke="#7e22ce" stroke-width="3">
+    <animate attributeName="fill" values="#4ade80;#a855f7;#4ade80" dur="1.6s" repeatCount="indefinite"/>
+  </circle>
+  <rect x="16" y="74" width="12" height="28" rx="6" fill="#dcc3ff" stroke="#7e22ce" stroke-width="4"/>
+  <rect x="132" y="70" width="12" height="28" rx="6" fill="#dcc3ff" stroke="#7e22ce" stroke-width="4"/>
+  <rect x="30" y="42" width="100" height="88" rx="30" fill="url(#shell)" stroke="#7e22ce" stroke-width="4">
+    <animateTransform attributeName="transform" type="rotate" values="-1 80 86; 1 80 86; -1 80 86" dur="2.4s" repeatCount="indefinite"/>
+  </rect>
+  <path d="M46 68 q14 -14 28 0" fill="none" stroke="#3b0764" stroke-width="5" stroke-linecap="round"/>
+  <path d="M112 74 q-10 6 -20 -2" fill="none" stroke="#3b0764" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="62" cy="90" r="9" fill="#ffffff" stroke="#3b0764" stroke-width="4"/>
+  <circle cx="99" cy="88" r="6" fill="#ffffff" stroke="#3b0764" stroke-width="4"/>
+  <circle cx="62" cy="90" r="3.5" fill="#3b0764">
+    <animate attributeName="cx" values="59;65;59" dur="1.2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="99" cy="88" r="2.5" fill="#3b0764"/>
+  <path d="M62 112 q6 -8 12 0 q6 8 12 -2 q4 -6 8 2" fill="none" stroke="#3b0764" stroke-width="5" stroke-linecap="round"/>
+</svg>

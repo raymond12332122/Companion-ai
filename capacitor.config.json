@@ -1,0 +1,9 @@
+{
+  "appId": "ai.companion.pixel",
+  "appName": "Companion",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "minWebViewVersion": 60
+  }
+}
