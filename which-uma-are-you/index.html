@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <title>Which Uma Are You? — Personality Quiz</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="rail-strip"></div>
+
+    <div class="home-hero">
+      <span class="badge">🏇 Fan Personality Quiz</span>
+      <div class="hero-emoji-track">🐎💨</div>
+      <h1>Which Uma Are You?</h1>
+      <p>
+        Answer 15 quick questions about how you race, train, and treat your
+        rivals — we'll match you to the racehorse girl whose heart runs
+        closest to yours.
+      </p>
+
+      <div class="meta-row">
+        <span class="meta-pill">15 Questions</span>
+        <span class="meta-pill">~3 min</span>
+        <span class="meta-pill">6 Characters</span>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="start-btn">Start Quiz →</button>
+
+    <p class="footer-note">
+      Fan-made project. Original characters, names, and personality
+      interpretations only — no official artwork or copyrighted material used.
+    </p>
+  </div>
+
+  <script>
+    document.getElementById('start-btn').addEventListener('click', function () {
+      window.location.href = 'quiz.html';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <title>Which Uma Are You? — Quiz</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="page">
+    <a href="index.html" class="top-link">← Exit quiz</a>
+
+    <div class="quiz-header">
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+      </div>
+      <div class="progress-label" id="progress-label">Question 1 of 15</div>
+    </div>
+
+    <div class="question-card">
+      <div class="question-index" id="question-index">QUESTION 1</div>
+      <div class="question-text" id="question-text"></div>
+      <div class="answers-list" id="answers-list"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="prev-btn">← Previous</button>
+      <button class="btn btn-primary" id="next-btn" disabled>Next →</button>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script>
+    const STORAGE_KEY = 'uma-quiz-answers';
+
+    /* answers[i] = index of chosen answer for QUESTIONS[i], or null if unanswered */
+    let answers = loadAnswers();
+    let currentIndex = 0;
+
+    const progressFill = document.getElementById('progress-fill');
+    const progressLabel = document.getElementById('progress-label');
+    const questionIndexEl = document.getElementById('question-index');
+    const questionTextEl = document.getElementById('question-text');
+    const answersListEl = document.getElementById('answers-list');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+
+    function loadAnswers() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length === QUESTIONS.length) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        /* corrupted storage, fall through to fresh state */
+      }
+      return new Array(QUESTIONS.length).fill(null);
+    }
+
+    function saveAnswers() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
+    }
+
+    function renderQuestion() {
+      const q = QUESTIONS[currentIndex];
+      const total = QUESTIONS.length;
+
+      questionIndexEl.textContent = `QUESTION ${currentIndex + 1}`;
+      questionTextEl.textContent = q.q;
+
+      const pct = ((currentIndex + 1) / total) * 100;
+      progressFill.style.width = pct + '%';
+      progressLabel.textContent = `Question ${currentIndex + 1} of ${total}`;
+
+      answersListEl.innerHTML = '';
+      const letters = ['A', 'B', 'C', 'D'];
+
+      q.answers.forEach((answer, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'answer-option';
+        btn.type = 'button';
+        if (answers[currentIndex] === i) {
+          btn.classList.add('selected');
+        }
+
+        const letterSpan = document.createElement('span');
+        letterSpan.className = 'letter';
+        letterSpan.textContent = letters[i];
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = answer.text;
+
+        btn.appendChild(letterSpan);
+        btn.appendChild(textSpan);
+
+        btn.addEventListener('click', () => selectAnswer(i));
+        answersListEl.appendChild(btn);
+      });
+
+      prevBtn.disabled = currentIndex === 0;
+      nextBtn.disabled = answers[currentIndex] === null;
+      nextBtn.textContent = currentIndex === total - 1 ? 'See Results →' : 'Next →';
+    }
+
+    function selectAnswer(i) {
+      answers[currentIndex] = i;
+      saveAnswers();
+      renderQuestion();
+    }
+
+    function goNext() {
+      if (answers[currentIndex] === null) return;
+
+      if (currentIndex === QUESTIONS.length - 1) {
+        window.location.href = 'results.html';
+        return;
+      }
+      currentIndex++;
+      renderQuestion();
+    }
+
+    function goPrev() {
+      if (currentIndex === 0) return;
+      currentIndex--;
+      renderQuestion();
+    }
+
+    nextBtn.addEventListener('click', goNext);
+    prevBtn.addEventListener('click', goPrev);
+
+    /* resume at first unanswered question, or the last one if all answered */
+    (function initStartIndex() {
+      const firstUnanswered = answers.findIndex((a) => a === null);
+      currentIndex = firstUnanswered === -1 ? QUESTIONS.length - 1 : firstUnanswered;
+    })();
+
+    renderQuestion();
+  </script>
+</body>
+</html>
