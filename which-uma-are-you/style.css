@@ -1073,10 +1073,24 @@ h1, h2, h3 {
 /* Special Week & Silence Suzuka's walking-chibi clip, cropped to just
    the action band and looped as a quiet decorative strip between the
    progress header and the question card -- muted/autoplay, so it never
-   competes with the audio-toggle SFX. */
+   competes with the audio-toggle SFX.
+
+   Mobile-first budget: .page is min-height:100vh with .question-card as
+   a flex:1 spacer, and at the 320-390px widths this project targets
+   that spacer already has very little slack (~44px) before the
+   Previous/Next row gets pushed toward or past the fold -- that's true
+   with or without this banner, it's just how tight the existing V0.6.2
+   layout runs on the narrowest phones. A width-driven `height: auto`
+   strip scales *up* with viewport width (taller video = taller banner),
+   which blows straight through that budget. Fixing the height instead
+   (object-fit: cover crops the clip to fit) keeps the banner's footprint
+   flat and small across every mobile width, so it stops competing with
+   the buttons; only past the desktop breakpoint below does it get to
+   grow into the fuller aspect-ratio strip. */
 .walking-banner {
   width: 100%;
   max-width: 360px;
+  height: 40px;
   margin: 2px auto 6px;
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -1086,7 +1100,20 @@ h1, h2, h3 {
 .walking-banner-video {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+}
+
+@media (min-width: 700px) {
+  .walking-banner {
+    height: auto;
+    max-width: 420px;
+  }
+  .walking-banner-video {
+    height: auto;
+    object-fit: initial;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
