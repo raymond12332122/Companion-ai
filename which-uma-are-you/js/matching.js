@@ -7,7 +7,7 @@
 import { TRAITS } from './traits.js';
 import { QUESTIONS } from './questions.js';
 
-const CHARACTER_TRAIT_MAX = 10; /* character profile values are authored 0-10 */
+const CHARACTER_TRAIT_MAX = 10; /* personalityProfile values are authored 0-10 */
 
 /**
  * For each trait, sum the highest weight any single answer could contribute
@@ -72,12 +72,16 @@ export function computeUserProfile(answers) {
 
 /**
  * Builds a normalized trait profile (each trait in [0, 1]) for a character,
- * from its authored 0-10 profile values.
+ * from its authored 0-10 personalityProfile values. Reads only
+ * character.personalityProfile and TRAITS — nothing else about a
+ * character's shape matters here, so adding new characters (or new
+ * character fields, like image/strengths/weaknesses) never requires a
+ * change to this file.
  */
 export function normalizeCharacterProfile(character) {
   const profile = {};
   TRAITS.forEach((trait) => {
-    profile[trait] = (character.profile[trait] || 0) / CHARACTER_TRAIT_MAX;
+    profile[trait] = (character.personalityProfile[trait] || 0) / CHARACTER_TRAIT_MAX;
   });
   return profile;
 }
@@ -125,6 +129,14 @@ export function scoreCharacter(userProfile, characterProfile) {
  * Ranks a list of characters against a normalized user profile, highest
  * match first. Each result is { character, score } where score is a
  * 0-100 percentage.
+ *
+ * Ties (identical scores) are broken deterministically by character id
+ * (ascending). Without this, Array.prototype.sort's stability would
+ * silently fall back to each character's position in the `characters`
+ * array — which "wins" a tie would then depend on array order rather
+ * than anything about the characters themselves, and could change
+ * unexpectedly whenever the roster is reordered or edited, not just
+ * when scores actually change.
  */
 export function rankCharacters(userProfile, characters) {
   return characters
@@ -132,5 +144,5 @@ export function rankCharacters(userProfile, characters) {
       character,
       score: scoreCharacter(userProfile, normalizeCharacterProfile(character))
     }))
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score || a.character.id.localeCompare(b.character.id));
 }

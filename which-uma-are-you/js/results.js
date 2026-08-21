@@ -17,9 +17,14 @@ function initials(name) {
     .toUpperCase();
 }
 
+const MAX_OTHER_MATCHES = 5;
+
 function renderResult(userProfile, matches) {
   const best = matches[0];
-  const others = matches.slice(1);
+  /* Cap displayed "other matches" so results stay readable as the
+     roster grows well past 6 characters — matching.js itself still
+     ranks and returns every character. */
+  const others = matches.slice(1, 1 + MAX_OTHER_MATCHES);
   const container = document.getElementById('result-content');
 
   const traitRows = TRAITS.map((t) => {
@@ -63,7 +68,7 @@ function renderResult(userProfile, matches) {
     </div>
 
     <div class="character-blurb">
-      ${best.character.blurb}
+      ${best.character.summary}
       <br /><br />
       You matched <span class="match-score">${bestPct}%</span> with ${best.character.name}.
     </div>
