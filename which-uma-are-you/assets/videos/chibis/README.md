@@ -7,11 +7,11 @@ special results-page moments) and are **not** currently wired into the
 live chibi peek system in `js/chibi.js`, which only supports static
 images (`.webp`/`.png`/`.gif`) via `<img>` tags.
 
-Files:
+Files (all present, sizes verified to match the Drive source exactly):
 
-- `SPECIAL WEEK AND SILENCE SUZUKA WALKING CHIBI.mp4` — present, byte-identical to the Drive source (verified 2,777,095 bytes).
-- `GOLDSHIP CHIBI DANCE.mp4` — **not yet copied here.** Source file is ~21MB; exceeds the current Drive-download tooling's 10MB transfer limit. Still only in the source Drive folder.
-- `OGURI CAP DANCE.mp4` — **not yet copied here.** Source file is ~17MB; same limit issue as above.
+- `SPECIAL WEEK AND SILENCE SUZUKA WALKING CHIBI.mp4` — 2,777,095 bytes.
+- `GOLDSHIP CHIBI DANCE.mp4` — 21,180,195 bytes. Uploaded directly (the Drive-download tool's 10MB cap blocked pulling it from Drive itself).
+- `OGURI CAP DANCE.mp4` — 16,754,697 bytes. Same as above.
 
 Do not delete, convert, re-encode, or otherwise modify these files. If
 GIF/still/transparent versions are provided separately for the live peek
