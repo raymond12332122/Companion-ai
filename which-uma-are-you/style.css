@@ -1033,6 +1033,10 @@ h1, h2, h3 {
   height: auto;
   opacity: 0;
   border-radius: 10px;
+  pointer-events: none; /* belt-and-suspenders: .chibi-behind lives in .page,
+    not the pointer-events:none .chibi-layer, so this can't rely on the
+    parent alone -- a chibi must never be able to intercept a tap meant
+    for the quiz underneath it, regardless of which container it's in. */
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
   transition: opacity 380ms ease, transform 380ms var(--ease-pop);
 }
@@ -1052,6 +1056,23 @@ h1, h2, h3 {
 .chibi-peek-out.chibi-edge-top { opacity: 0; transform: translateY(-100%); }
 .chibi-peek-out.chibi-edge-bottom { opacity: 0; transform: translateY(100%); }
 
+/* Corner entrances -- "another appropriate screen edge" beyond the 4
+   cardinal ones, diagonal pop-in/out from each screen corner. */
+.chibi-corner-tl { top: -20px; left: -20px; transform: translate(-100%, -100%); }
+.chibi-corner-tr { top: -20px; right: -20px; transform: translate(100%, -100%); }
+.chibi-corner-bl { bottom: -20px; left: -20px; transform: translate(-100%, 100%); }
+.chibi-corner-br { bottom: -20px; right: -20px; transform: translate(100%, 100%); }
+
+.chibi-peek-in.chibi-corner-tl { opacity: 1; transform: translate(-6px, -6px); }
+.chibi-peek-in.chibi-corner-tr { opacity: 1; transform: translate(6px, -6px); }
+.chibi-peek-in.chibi-corner-bl { opacity: 1; transform: translate(-6px, 6px); }
+.chibi-peek-in.chibi-corner-br { opacity: 1; transform: translate(6px, 6px); }
+
+.chibi-peek-out.chibi-corner-tl { opacity: 0; transform: translate(-100%, -100%); }
+.chibi-peek-out.chibi-corner-tr { opacity: 0; transform: translate(100%, -100%); }
+.chibi-peek-out.chibi-corner-bl { opacity: 0; transform: translate(-100%, 100%); }
+.chibi-peek-out.chibi-corner-br { opacity: 0; transform: translate(100%, 100%); }
+
 /* Pops up at a random spot anywhere in the viewport rather than sliding
    in from an edge -- just scales/fades in place. */
 .chibi-float { width: 76px; transform: scale(0.6); }
@@ -1068,6 +1089,20 @@ h1, h2, h3 {
 }
 .chibi-peek-in.chibi-behind { opacity: 1; transform: scale(1); }
 .chibi-peek-out.chibi-behind { opacity: 0; transform: scale(0.7); }
+
+/* Entrance "flavor" -- derived per-character from their dominant
+   personality trait (see dominantFlavor() in chibi.js), layered onto
+   whichever position class is already handling *where* the peek enters
+   from. Each just retunes the shared opacity/transform transition's
+   duration and easing so different characters feel distinct without
+   needing a second transform system to fight the positional one. */
+.chibi-flavor-charge { transition-duration: 260ms; transition-timing-function: cubic-bezier(0.3, 0, 0.15, 1); }
+.chibi-flavor-gentle { transition-duration: 620ms; transition-timing-function: ease-out; }
+.chibi-flavor-strut { transition-duration: 420ms; transition-timing-function: var(--ease-pop); }
+.chibi-flavor-dash { transition-duration: 180ms; transition-timing-function: cubic-bezier(0.5, 0, 0.2, 1); }
+.chibi-flavor-precise { transition-duration: 220ms; transition-timing-function: linear; }
+.chibi-flavor-chaotic { transition-duration: 380ms; transition-timing-function: var(--ease-pop); }
+.chibi-flavor-bounce { transition-duration: 500ms; transition-timing-function: var(--ease-pop); }
 
 /* ---------- Walking companions banner (quiz header) ---------- */
 /* Special Week & Silence Suzuka's walking-chibi clip, muted/looped.
@@ -1119,6 +1154,111 @@ h1, h2, h3 {
 
 @media (min-width: 700px) and (prefers-reduced-motion: reduce) {
   .walking-banner { display: none; }
+}
+
+/* ---------- Special Week Rain easter egg ---------- */
+/* Extremely rare, purely decorative overlay -- see js/specialWeekRain.js.
+   z-index above both .chibi-layer (6) and the audio toggle (30) since
+   this is meant to genuinely interrupt for a moment; pointer-events:auto
+   (unlike chibi peeks) so a tap dismisses it early, but it also
+   auto-dismisses on its own after a couple of seconds either way, so it
+   can never trap the player. */
+.sw-rain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6, 7, 20, 0.55);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+.sw-rain-overlay.sw-rain-in { opacity: 1; }
+.sw-rain-overlay.sw-rain-out { opacity: 0; }
+
+.sw-rain-drops {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sw-raindrop {
+  position: absolute;
+  top: -8%;
+  width: 3px;
+  height: 46px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, transparent, var(--cyan) 55%, transparent);
+  opacity: 0.75;
+  animation: sw-rain-fall linear infinite;
+}
+
+@keyframes sw-rain-fall {
+  from { transform: translateY(-10vh); }
+  to { transform: translateY(115vh); }
+}
+
+.sw-rain-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 320px;
+  padding: 28px 24px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(165deg, var(--card-bg), #151833);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-glow);
+  text-align: center;
+  transform: scale(0.7);
+  opacity: 0;
+  transition: transform 420ms var(--ease-pop), opacity 260ms ease;
+}
+
+.sw-rain-overlay.sw-rain-in .sw-rain-card { transform: scale(1); opacity: 1; }
+
+.sw-rain-portrait {
+  width: clamp(120px, 42vw, 200px);
+  height: auto;
+  border-radius: var(--radius-md);
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+}
+
+.sw-rain-caption {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: clamp(1.15rem, 5vw, 1.4rem);
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.sw-rain-subcaption {
+  font-size: 0.92rem;
+  color: var(--text-dim);
+}
+
+.sw-rain-hint {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-rain-overlay,
+  .sw-rain-card {
+    transition: none;
+  }
+  .sw-raindrop {
+    animation: none;
+    display: none;
+  }
 }
 
 /* ---------- Page-level entrance/transition ---------- */

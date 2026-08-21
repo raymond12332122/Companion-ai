@@ -29,7 +29,8 @@ const SFX_PATHS = {
   Optimism: 'assets/audio/trait-optimism.mp3',
   select: 'assets/audio/select.mp3',
   resultsReveal: 'assets/audio/results-reveal.mp3',
-  easterEgg: 'assets/audio/easter-egg.mp3'
+  easterEgg: 'assets/audio/easter-egg.mp3',
+  specialWeekRain: 'assets/audio/special-week-rain.mp3'
 };
 
 let muted = readMutedPref();
@@ -98,6 +99,16 @@ export function playSelectionSfx(trait) {
 
 export function playResultsRevealSfx() {
   play('resultsReveal');
+}
+
+/**
+ * SFX for the (very rare) Special Week Rain easter egg -- see
+ * js/specialWeekRain.js. Same autoplay-safety guarantee as every other
+ * play* export here: only ever called from a spot already behind a
+ * prior user gesture, and still gated by the mute toggle via play().
+ */
+export function playSpecialWeekRainSfx() {
+  play('specialWeekRain');
 }
 
 /**

@@ -1,9 +1,10 @@
 /* ==========================================================================
    Which Uma Are You? — Chibi Companion System
 
-   Rare, randomized decorative character peeks around the quiz/results UI.
-   Reads CHARACTERS for id + name only (image paths, alt text) — never
-   modifies it, matching.js, or any scoring data.
+   Rare, randomized decorative character interruptions around the
+   quiz/results UI. Reads CHARACTERS for id + name + personalityProfile
+   only (image paths, alt text, entrance flavor) — never modifies it,
+   matching.js, or any scoring data.
 
    Purely cosmetic: if a chibi asset is missing (most characters have
    none yet — see assets/chibis/README.md), the peek's onerror handler
@@ -20,6 +21,13 @@
    peek (see CHIBI_VIDEO_MAP) trimmed from the source dance videos in
    assets/videos/chibis/ — everyone else without a listed clip falls
    back to the static-image path, same as before.
+
+   Entrance "flavor" (how snappy/bouncy/gentle the pop-in feels) is
+   derived from each character's own existing personalityProfile —
+   whichever of the 7 traits they score highest in — rather than a
+   second hardcoded per-character table, so every character (including
+   ones added to the roster later) automatically gets a flavor that
+   actually reflects who they are, for free.
    ========================================================================== */
 
 import { CHARACTERS } from './characters.js';
@@ -43,24 +51,42 @@ const CHIBI_VIDEO_MAP = {
   }
 };
 
-const EDGES = ['left', 'right', 'top', 'bottom'];
-/* Single unified pop chance checked at every trigger point (ambient tick
-   and answer-select reaction alike) -- previously ambient/reaction had
-   separate, much lower odds; both now share this one number. */
-const POP_CHANCE = 0.56;
-const AMBIENT_MIN_MS = 7000;
-const AMBIENT_MAX_MS = 15000;
-const HOLD_MS = 1400;
-const HOLD_MS_VIDEO = 2400; /* longer hold so a dance clip actually reads as dancing */
+/* Cardinal edges plus corners -- "another appropriate screen edge" per
+   character, all still anchored to the always-on-top .chibi-layer
+   overlay (fixed, overflow:hidden), so none of these can ever grow the
+   page's scrollable area. */
+const EDGES = ['left', 'right', 'top', 'bottom', 'tl', 'tr', 'bl', 'br'];
+
+/* These are meant to read as rare surprises, not a constant companion --
+   deliberately low. (An earlier pass used a much higher 56% shared
+   chance; this supersedes that per direct feedback that they needed to
+   feel rare again.) */
+const POP_CHANCE = 0.1;
+const AMBIENT_MIN_MS = 9000;
+const AMBIENT_MAX_MS = 20000;
+/* "Some very brief, some stay a moment" -- randomized per spawn rather
+   than one fixed duration. */
+const HOLD_MS_MIN = 850;
+const HOLD_MS_MAX = 2200;
+const HOLD_MS_VIDEO_MIN = 2000;
+const HOLD_MS_VIDEO_MAX = 3200;
 const EXIT_MS = 420;
 const MAX_CONCURRENT = 1;
 
-/* Where a peek can appear: screen edges (as before, now including the
-   bottom edge too), a fully random spot anywhere in the viewport
-   ("floating"), or tucked behind the current question/result card so it
-   only shows around the card's corners -- 'behind' is only picked when
-   that card actually exists on the current page. */
 const POSITION_TYPES = ['edge', 'float', 'behind'];
+
+/* transition duration/easing per dominant trait -- position (where it
+   enters from) and flavor (how it moves) are independent, so any
+   direction can pair with any character's flavor. */
+const TRAIT_FLAVORS = {
+  Determination: 'charge', /* fast, confident, minimal overshoot */
+  Kindness: 'gentle', /* slow, soft fade, barely any snap */
+  Confidence: 'strut', /* springy, a little swagger */
+  Competitiveness: 'dash', /* very quick, sharp stop */
+  Discipline: 'precise', /* linear, exact, no bounce at all */
+  Chaos: 'chaotic', /* the biggest spring overshoot of the set */
+  Optimism: 'bounce' /* classic cheerful spring-in */
+};
 
 let layerEl = null;
 let active = 0;
@@ -70,8 +96,26 @@ function randomCharacter() {
   return CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
 }
 
+function dominantFlavor(character) {
+  const profile = character.personalityProfile;
+  if (!profile) return 'bounce';
+  let bestTrait = null;
+  let bestValue = -Infinity;
+  Object.keys(profile).forEach((trait) => {
+    if (profile[trait] > bestValue) {
+      bestValue = profile[trait];
+      bestTrait = trait;
+    }
+  });
+  return TRAIT_FLAVORS[bestTrait] || 'bounce';
+}
+
 function cardTarget() {
   return document.getElementById('question-card') || document.querySelector('.result-hero');
+}
+
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
 }
 
 function createPeekMedia(character) {
@@ -104,7 +148,7 @@ function createPeekMedia(character) {
 function settleAndAnimate(el, isVideo) {
   active++;
   requestAnimationFrame(() => el.classList.add('chibi-peek-in'));
-  const hold = isVideo ? HOLD_MS_VIDEO : HOLD_MS;
+  const hold = isVideo ? randomBetween(HOLD_MS_VIDEO_MIN, HOLD_MS_VIDEO_MAX) : randomBetween(HOLD_MS_MIN, HOLD_MS_MAX);
   setTimeout(() => {
     el.classList.remove('chibi-peek-in');
     el.classList.add('chibi-peek-out');
@@ -119,16 +163,19 @@ function spawnEdgePeek(character) {
   if (!layerEl) return;
   const { el, isVideo } = createPeekMedia(character);
   const edge = EDGES[Math.floor(Math.random() * EDGES.length)];
+  const flavor = dominantFlavor(character);
 
   el.alt = '';
   el.setAttribute('aria-hidden', 'true');
-  el.className = `chibi-peek chibi-edge-${edge}`;
+  el.className = `chibi-peek chibi-edge-${edge} chibi-flavor-${flavor}`;
 
   if (edge === 'left' || edge === 'right') {
-    el.style.top = 20 + Math.random() * 55 + '%';
-  } else {
-    el.style.left = 12 + Math.random() * 66 + '%';
+    el.style.top = 15 + Math.random() * 60 + '%';
+  } else if (edge === 'top' || edge === 'bottom') {
+    el.style.left = 10 + Math.random() * 68 + '%';
   }
+  /* corners (tl/tr/bl/br) need no extra offset -- their CSS anchors them
+     directly to a screen corner. */
 
   el.addEventListener('error', () => el.remove(), { once: true });
   el.addEventListener(isVideo ? 'loadeddata' : 'load', () => settleAndAnimate(el, isVideo), { once: true });
@@ -136,16 +183,17 @@ function spawnEdgePeek(character) {
   layerEl.appendChild(el);
 }
 
-/* Pops up at a fully random spot inside the viewport, not anchored to
-   any edge -- this is the "...and everywhere" case. Stays within the
-   chibi-layer overlay (z-index above the page) like edge peeks. */
+/* Pops up at a random spot anywhere in the viewport rather than sliding
+   in from an edge -- this is the "...and everywhere" case. Stays within
+   the chibi-layer overlay (z-index above the page) like edge peeks. */
 function spawnFloatPeek(character) {
   if (!layerEl) return;
   const { el, isVideo } = createPeekMedia(character);
+  const flavor = dominantFlavor(character);
 
   el.alt = '';
   el.setAttribute('aria-hidden', 'true');
-  el.className = 'chibi-peek chibi-float';
+  el.className = `chibi-peek chibi-float chibi-flavor-${flavor}`;
   el.style.top = 10 + Math.random() * 70 + '%';
   el.style.left = 8 + Math.random() * 74 + '%';
 
@@ -168,10 +216,11 @@ function spawnBehindCardPeek(character) {
   const pageRect = page.getBoundingClientRect();
   const cardRect = card.getBoundingClientRect();
   const { el, isVideo } = createPeekMedia(character);
+  const flavor = dominantFlavor(character);
 
   el.alt = '';
   el.setAttribute('aria-hidden', 'true');
-  el.className = 'chibi-peek chibi-behind';
+  el.className = `chibi-peek chibi-behind chibi-flavor-${flavor}`;
 
   const size = 96;
   const corners = ['tl', 'tr', 'bl', 'br'];
@@ -220,7 +269,7 @@ function spawnPeek() {
 
 function scheduleAmbient() {
   if (prefersReducedMotion) return;
-  const delay = AMBIENT_MIN_MS + Math.random() * (AMBIENT_MAX_MS - AMBIENT_MIN_MS);
+  const delay = randomBetween(AMBIENT_MIN_MS, AMBIENT_MAX_MS);
   ambientTimer = setTimeout(() => {
     if (Math.random() < POP_CHANCE) spawnPeek();
     scheduleAmbient();

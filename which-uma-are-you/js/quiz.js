@@ -6,6 +6,7 @@ import { QUESTIONS } from './questions.js';
 import { loadAnswers, saveAnswers } from './storage.js';
 import { initAudioToggle, playSelectionSfx } from './audio.js';
 import { initChibiLayer, maybeChibiReaction } from './chibi.js';
+import { maybeSpecialWeekRain } from './specialWeekRain.js';
 
 const prefersReducedMotion =
   typeof window.matchMedia === 'function' &&
@@ -147,6 +148,7 @@ function selectAnswer(i) {
 
   playSelectionSfx(trait);
   maybeChibiReaction();
+  maybeSpecialWeekRain();
 
   /* Selecting an answer auto-advances after a short beat so the tap
      itself (card state, trait fx, SFX, occasional chibi) has time to
