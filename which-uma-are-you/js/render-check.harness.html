@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<!--
+  Dev-only test harness. Not linked from index.html/quiz.html/results.html
+  and not part of the shipped app. Lets a test drive results.js's
+  renderResult() directly for an arbitrary character, without needing to
+  reverse-engineer 25 quiz answers that land on that specific character.
+  See js/results.js's exported renderResult for what this calls.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+  <div class="page">
+    <div id="result-content"></div>
+    <div class="btn-row"><button id="retake-btn" class="btn btn-primary">unused</button></div>
+  </div>
+  <script type="module" src="render-check.js"></script>
+</body>
+</html>

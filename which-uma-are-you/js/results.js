@@ -34,7 +34,12 @@ function avatarInnerHTML(character) {
 
 const MAX_OTHER_MATCHES = 5;
 
-function renderResult(userProfile, matches) {
+/* Exported (in addition to being used internally below) so it can be
+   driven directly in tests without reverse-engineering quiz answers
+   that land on a specific character — see the per-character render
+   check run for each V0.4 batch. Behavior for the live page is
+   unchanged either way. */
+export function renderResult(userProfile, matches) {
   const best = matches[0];
   /* Cap displayed "other matches" so results stay readable as the
      roster grows well past 6 characters — matching.js itself still
