@@ -489,5 +489,295 @@ export const CHARACTERS = [
       Chaos: 7,
       Optimism: 6
     }
+  },
+  {
+    id: "mihono-bourbon",
+    name: "Mihono Bourbon",
+    image: "assets/characters/mihono-bourbon.webp",
+    tagline: "The obsessive perfectionist who never allows herself to rest.",
+    summary:
+      "Locked into an impossibly demanding standard of her own making. Every session is measured, logged, and never quite good enough — she isn't chasing anyone else's approval, just her own.",
+    strengths: [
+      "Unmatched work ethic",
+      "Never cuts corners, ever",
+      "Holds herself to a standard no one else could enforce"
+    ],
+    weaknesses: [
+      "Doesn't know how to ease off",
+      "Struggles to accept praise or rest",
+      "Isolates herself under the weight of her own expectations"
+    ],
+    raceStrategy:
+      "Executes a training-honed plan down to the second — no flair, no deviation, just relentless, exacting precision.",
+    personalityProfile: {
+      Determination: 10,
+      Kindness: 2,
+      Confidence: 3,
+      Competitiveness: 3,
+      Discipline: 10,
+      Chaos: 0,
+      Optimism: 2
+    }
+  },
+  {
+    id: "nice-nature",
+    name: "Nice Nature",
+    image: "assets/characters/nice-nature.webp",
+    tagline: "The good-natured almost-winner who's never once been bitter about it.",
+    summary:
+      "Second place, again — and somehow completely fine with it. She shows up, gives an honest effort, and is genuinely, uncomplicatedly happy to watch someone else take the win.",
+    strengths: [
+      "Effortlessly good sport",
+      "Never lets a loss sour her mood",
+      "Makes everyone around her feel at ease"
+    ],
+    weaknesses: [
+      "Rarely pushes herself past \"good enough\"",
+      "Can be too easily satisfied with almost",
+      "Doesn't advocate for what she actually wants"
+    ],
+    raceStrategy:
+      "Runs a perfectly pleasant race, ends up close but not first, and is already cheering for the winner before she's crossed the line herself.",
+    personalityProfile: {
+      Determination: 4,
+      Kindness: 9,
+      Confidence: 3,
+      Competitiveness: 4,
+      Discipline: 4,
+      Chaos: 5,
+      Optimism: 8
+    }
+  },
+  {
+    id: "sakura-bakushin-o",
+    name: "Sakura Bakushin O",
+    image: "assets/characters/sakura-bakushin-o.webp",
+    tagline: "The boisterous sprinter with main-character energy and the lungs to match.",
+    summary:
+      "Loud, thrilled to be here, and utterly convinced she's about to win — at full volume, the whole time. Her enthusiasm isn't a strategy, it's just who she is at every possible moment.",
+    strengths: [
+      "Explosive, contagious energy",
+      "Genuinely fearless about big moments",
+      "Never quietly settles for second"
+    ],
+    weaknesses: [
+      "Peaks hard, fades fast",
+      "Struggles with anything slow or patient",
+      "Volume sometimes substitutes for a plan"
+    ],
+    raceStrategy:
+      "Holds nothing back from the opening burst — all-out sprint energy, front-loaded and unapologetic, betting everything on the explosion.",
+    personalityProfile: {
+      Determination: 6,
+      Kindness: 4,
+      Confidence: 9,
+      Competitiveness: 9,
+      Discipline: 3,
+      Chaos: 7,
+      Optimism: 8
+    }
+  },
+  {
+    id: "twin-turbo",
+    name: "Twin Turbo",
+    image: "assets/characters/twin-turbo.webp",
+    tagline: "The self-styled speed demon who's already naming her own signature move.",
+    summary:
+      "Convinced she's the coolest, fastest thing on the track, and loud about it in the most endearing way possible. Reality doesn't always agree, but her commitment to the bit never wavers.",
+    strengths: [
+      "Unshakeable enthusiasm for her own hype",
+      "Turns even a loss into a good story",
+      "Never boring to be around"
+    ],
+    weaknesses: [
+      "Style frequently outpaces substance",
+      "Skips prep in favor of vibes",
+      "Overestimates how well the bit is landing"
+    ],
+    raceStrategy:
+      "Announces exactly how she's going to win, in detail, beforehand — then improvises something completely different once the gate opens.",
+    personalityProfile: {
+      Determination: 4,
+      Kindness: 3,
+      Confidence: 6,
+      Competitiveness: 4,
+      Discipline: 1,
+      Chaos: 9,
+      Optimism: 9
+    }
+  },
+  {
+    id: "winning-ticket",
+    name: "Winning Ticket",
+    image: "assets/characters/winning-ticket.webp",
+    tagline: "The carefree gambler who's pretty sure it'll work out.",
+    summary:
+      "Doesn't stress, doesn't overplan, doesn't really see the point of either. Wins and losses roll off her the same way — she's here for the fun of it, and mostly, that's genuinely enough.",
+    strengths: [
+      "Impossible to rattle",
+      "Never brings unnecessary pressure into a room",
+      "Enjoys the process regardless of outcome"
+    ],
+    weaknesses: [
+      "Rarely prepares beyond \"we'll see\"",
+      "Can come across as not caring at all",
+      "Leaves results almost entirely to chance"
+    ],
+    raceStrategy:
+      "Shows up, picks a lane that feels right in the moment, and lets the race sort itself out from there.",
+    personalityProfile: {
+      Determination: 2,
+      Kindness: 7,
+      Confidence: 6,
+      Competitiveness: 1,
+      Discipline: 1,
+      Chaos: 7,
+      Optimism: 8
+    }
+  },
+  {
+    id: "maruzensky",
+    name: "Maruzensky",
+    image: "assets/characters/maruzensky.webp",
+    tagline: "The dominant natural talent who doesn't need to explain herself.",
+    summary:
+      "Simply, overwhelmingly good — and not particularly interested in softening that fact for anyone's comfort. She doesn't posture or provoke; the results already say everything she'd bother saying.",
+    strengths: [
+      "Talent that speaks entirely for itself",
+      "Completely unbothered by doubt",
+      "Delivers without needing hype or setup"
+    ],
+    weaknesses: [
+      "Blunt to the point of distance",
+      "Little patience for those who need encouragement",
+      "Rarely explains her reasoning to anyone"
+    ],
+    raceStrategy:
+      "Runs like the outcome was decided before the gate even opened — no wasted effort, no theatrics, just overwhelming, matter-of-fact superiority.",
+    personalityProfile: {
+      Determination: 6,
+      Kindness: 3,
+      Confidence: 10,
+      Competitiveness: 6,
+      Discipline: 3,
+      Chaos: 2,
+      Optimism: 5
+    }
+  },
+  {
+    id: "taiki-shuttle",
+    name: "Taiki Shuttle",
+    image: "assets/characters/taiki-shuttle.webp",
+    tagline: "The charismatic globe-trotter who makes everywhere feel like home turf.",
+    summary:
+      "Warm, well-traveled, and genuinely excited by the idea of proving herself anywhere, against anyone. She collects rivals like souvenirs and somehow stays friends with all of them.",
+    strengths: [
+      "Effortlessly charming across any crowd",
+      "Thrives specifically on new, unfamiliar challenges",
+      "Turns rivals into friends without really trying"
+    ],
+    weaknesses: [
+      "Restless with familiar, repetitive routine",
+      "Sometimes chases the next big stage over the current one",
+      "Underprepares for anything that isn't novel"
+    ],
+    raceStrategy:
+      "Treats every race like a new stage worth putting on a show for — confident, adaptable, and clearly having the time of her life doing it.",
+    personalityProfile: {
+      Determination: 5,
+      Kindness: 6,
+      Confidence: 8,
+      Competitiveness: 5,
+      Discipline: 3,
+      Chaos: 4,
+      Optimism: 9
+    }
+  },
+  {
+    id: "kitasan-black",
+    name: "Kitasan Black",
+    image: "assets/characters/kitasan-black.webp",
+    tagline: "The steady captain who lifts the whole team just by showing up.",
+    summary:
+      "Doesn't need to be the loudest in the room to be the one everyone rallies around. She works hard, means what she says, and genuinely wants to see the people around her succeed.",
+    strengths: [
+      "Quietly powerful work ethic",
+      "Makes teammates believe in themselves",
+      "Trustworthy in exactly the moments that matter"
+    ],
+    weaknesses: [
+      "Undersells her own achievements",
+      "Takes on more than her share to protect others",
+      "Slow to ask the team to carry her in return"
+    ],
+    raceStrategy:
+      "Runs a strong, honest race built on effort rather than flash — and somehow the whole team seems to run a little better whenever she's in it.",
+    personalityProfile: {
+      Determination: 8,
+      Kindness: 9,
+      Confidence: 4,
+      Competitiveness: 6,
+      Discipline: 6,
+      Chaos: 2,
+      Optimism: 7
+    }
+  },
+  {
+    id: "satono-diamond",
+    name: "Satono Diamond",
+    image: "assets/characters/satono-diamond.webp",
+    tagline: "The idealistic perfectionist chasing a victory that has to look exactly right.",
+    summary:
+      "Isn't satisfied with just winning — it has to be the right kind of win, earned the way he's always pictured it. That vision is beautiful. It's also a very hard standard to live up to.",
+    strengths: [
+      "Holds a genuinely inspiring vision of excellence",
+      "Refuses to cut corners on his own ideals",
+      "Elevates the standard for everyone around him"
+    ],
+    weaknesses: [
+      "A win that isn't \"clean\" still feels like a loss to him",
+      "Second-guesses himself when reality doesn't match the vision",
+      "Can be paralyzed by his own high bar"
+    ],
+    raceStrategy:
+      "Waits for exactly the right moment to make his move — not the fastest opening, not the safest, but the one that matches the picture in his head.",
+    personalityProfile: {
+      Determination: 8,
+      Kindness: 3,
+      Confidence: 5,
+      Competitiveness: 3,
+      Discipline: 6,
+      Chaos: 4,
+      Optimism: 7
+    }
+  },
+  {
+    id: "smart-falcon",
+    name: "Smart Falcon",
+    image: "assets/characters/smart-falcon.webp",
+    tagline: "The unpretentious grinder who just wants to get the job done.",
+    summary:
+      "No glamour, no theatrics, no interest in either. She shows up, does the work, and heads home — competent and steady in a way that never needs to announce itself.",
+    strengths: [
+      "Reliable without needing recognition for it",
+      "Unbothered by flashier competition",
+      "Consistent effort, race after race"
+    ],
+    weaknesses: [
+      "Undersells herself in big moments",
+      "Can be overlooked next to louder personalities",
+      "Rarely pushes for the spotlight she's earned"
+    ],
+    raceStrategy:
+      "Runs the same honest, no-frills race every time — steady pace, no wasted drama, quietly gets it done.",
+    personalityProfile: {
+      Determination: 7,
+      Kindness: 6,
+      Confidence: 5,
+      Competitiveness: 3,
+      Discipline: 4,
+      Chaos: 2,
+      Optimism: 6
+    }
   }
 ];
