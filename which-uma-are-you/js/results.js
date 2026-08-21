@@ -46,6 +46,30 @@ function avatarInnerHTML(character, { lazy } = {}) {
   return initialsHTML + img;
 }
 
+/**
+ * The hero portrait renders differently from every other avatar in the
+ * app: instead of an image cropped to fill a circular badge, the badge
+ * (rings, gradient, gold sweep) stays as a decorative disc and the
+ * character art sits on top uncropped, tall enough to overflow past its
+ * top edge -- see .portrait-figure in style.css. Falls back to the same
+ * initials-in-a-circle treatment as everywhere else when there's no
+ * image, or if the image fails to load (onerror removes the whole
+ * breakout figure, leaving the circle's initials as-is).
+ */
+function heroPortraitHTML(character) {
+  const initialsHTML = `<span class="avatar-initials">${initials(character.name)}</span>`;
+  if (!character.image) return `<div class="character-portrait">${initialsHTML}</div>`;
+
+  /* has-image hides the initials while the breakout figure is showing --
+     unlike the old cover-cropped circle, the figure doesn't fully cover
+     the badge, so the initials would otherwise peek through the gaps
+     beside the character. onerror removes the figure and un-hides the
+     initials, restoring the normal no-image fallback. */
+  const circle = `<div class="character-portrait has-image">${initialsHTML}</div>`;
+  const figure = `<div class="portrait-figure"><img src="${character.image}" alt="${character.name}" loading="eager" onerror="this.closest('.portrait-frame')?.querySelector('.character-portrait')?.classList.remove('has-image'); this.parentElement.remove();" /></div>`;
+  return circle + figure;
+}
+
 const MAX_OTHER_MATCHES = 5;
 
 /* Exported (in addition to being used internally below) so it can be
@@ -104,9 +128,7 @@ export function renderResult(userProfile, matches) {
       <div class="eyebrow">You Are</div>
 
       <div class="portrait-frame">
-        <div class="character-portrait">
-          ${avatarInnerHTML(best.character, { lazy: false })}
-        </div>
+        ${heroPortraitHTML(best.character)}
         <div class="finish-sweep"></div>
         ${prefersReducedMotion ? '' : PARTICLE_SPANS}
       </div>

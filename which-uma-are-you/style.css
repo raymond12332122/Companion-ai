@@ -589,7 +589,10 @@ h1, h2, h3 {
   z-index: 0;
 }
 
-.character-portrait img,
+.character-portrait.has-image .avatar-initials {
+  opacity: 0;
+}
+
 .other-match-avatar img {
   position: absolute;
   inset: 0;
@@ -597,6 +600,33 @@ h1, h2, h3 {
   height: 100%;
   object-fit: cover;
   z-index: 1;
+}
+
+/* The hero portrait breaks out of the circular badge instead of being
+   cropped inside it -- the badge (rings, gradient, gold sweep) stays as
+   a decorative disc behind the character, who stands taller than it and
+   overflows the top. .portrait-frame must stay overflow:visible (it is,
+   by default) for this to actually spill outside the circle. Anchored
+   to the bottom of an oversized box so varying art proportions still
+   plant the character's feet near the badge instead of floating. */
+.portrait-figure {
+  position: absolute;
+  left: 50%;
+  bottom: 4%;
+  transform: translateX(-50%);
+  width: 145%;
+  height: 145%;
+  z-index: 3;
+  pointer-events: none;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45));
+}
+
+.portrait-figure img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
 }
 
 .portrait-frame::before {
