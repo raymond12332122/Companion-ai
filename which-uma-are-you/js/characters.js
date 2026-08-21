@@ -18,11 +18,11 @@
      weaknesses         string[]
      raceStrategy       flavor text
      personalityProfile { <trait>: 0-10, ... } — all seven TRAITS required
-     color              CSS color used for the current placeholder
-                         portrait/dot UI until real images are wired in;
-                         not part of the schema requested for the
-                         character system itself, kept for the existing
-                         results-page rendering
+
+   No image files are bundled yet (see assets/characters/README.md). The
+   results page renders the image when it loads and falls back to a
+   shared CSS gradient + initials otherwise — no per-character color
+   field is needed for that, so none is stored here.
    ========================================================================== */
 
 export const CHARACTERS = [
@@ -53,8 +53,7 @@ export const CHARACTERS = [
       Discipline: 5,
       Chaos: 3,
       Optimism: 10
-    },
-    color: "#ff7a9c"
+    }
   },
   {
     id: "silence-suzuka",
@@ -83,8 +82,7 @@ export const CHARACTERS = [
       Discipline: 8,
       Chaos: 2,
       Optimism: 6
-    },
-    color: "#7ad0ff"
+    }
   },
   {
     id: "tokai-teio",
@@ -113,8 +111,7 @@ export const CHARACTERS = [
       Discipline: 6,
       Chaos: 3,
       Optimism: 7
-    },
-    color: "#ffb84d"
+    }
   },
   {
     id: "gold-ship",
@@ -143,8 +140,7 @@ export const CHARACTERS = [
       Discipline: 2,
       Chaos: 10,
       Optimism: 8
-    },
-    color: "#c78dff"
+    }
   },
   {
     id: "haru-urara",
@@ -173,8 +169,7 @@ export const CHARACTERS = [
       Discipline: 4,
       Chaos: 4,
       Optimism: 10
-    },
-    color: "#ffd166"
+    }
   },
   {
     id: "meisho-doto",
@@ -203,7 +198,6 @@ export const CHARACTERS = [
       Discipline: 9,
       Chaos: 3,
       Optimism: 5
-    },
-    color: "#4dd6a8"
+    }
   }
 ];

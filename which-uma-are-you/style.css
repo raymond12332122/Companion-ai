@@ -346,6 +346,27 @@ h1, h2, h3 {
   border: 4px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
   position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--accent-3), var(--accent));
+}
+
+/* Fallback initials, painted first so a successfully-loaded image
+   (painted after, in DOM order) naturally covers them. If the image
+   is missing or fails to load, its onerror hides it and these show
+   through instead. */
+.avatar-initials {
+  position: relative;
+  z-index: 0;
+}
+
+.character-portrait img,
+.other-match-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
 }
 
 .character-portrait::before {
@@ -456,11 +477,21 @@ h1, h2, h3 {
   font-size: 0.85rem;
 }
 
-.other-match-dot {
-  width: 12px;
-  height: 12px;
+.other-match-avatar {
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #1a0d16;
+  background: linear-gradient(135deg, var(--accent-3), var(--accent));
 }
 
 .other-match-name {

@@ -17,6 +17,21 @@ function initials(name) {
     .toUpperCase();
 }
 
+/**
+ * Initials are painted first as a CSS-gradient fallback; when
+ * character.image is set, an <img> is layered on top via CSS (see
+ * .character-portrait img / .other-match-avatar img). If the image is
+ * missing or fails to load, onerror hides it and the initials show
+ * through underneath — no per-character color data needed either way.
+ */
+function avatarInnerHTML(character) {
+  const initialsHTML = `<span class="avatar-initials">${initials(character.name)}</span>`;
+  if (!character.image) return initialsHTML;
+
+  const img = `<img src="${character.image}" alt="${character.name}" onerror="this.style.display='none'" />`;
+  return initialsHTML + img;
+}
+
 const MAX_OTHER_MATCHES = 5;
 
 function renderResult(userProfile, matches) {
@@ -47,7 +62,7 @@ function renderResult(userProfile, matches) {
       const pct = Math.round(m.score);
       return `
         <div class="other-match-row">
-          <span class="other-match-dot" style="background:${m.character.color}"></span>
+          <span class="other-match-avatar">${avatarInnerHTML(m.character)}</span>
           <span class="other-match-name">${m.character.name}</span>
           <span class="other-match-pct">${pct}%</span>
         </div>
@@ -60,8 +75,8 @@ function renderResult(userProfile, matches) {
   container.innerHTML = `
     <div class="result-hero">
       <span class="badge">🏆 Your Match</span>
-      <div class="character-portrait" style="background:${best.character.color}">
-        ${initials(best.character.name)}
+      <div class="character-portrait">
+        ${avatarInnerHTML(best.character)}
       </div>
       <div class="character-name">${best.character.name}</div>
       <div class="character-tagline">${best.character.tagline}</div>
