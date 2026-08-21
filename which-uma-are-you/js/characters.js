@@ -75,11 +75,11 @@ export const CHARACTERS = [
     raceStrategy:
       "Takes the lead early and dares the rest of the field to catch her — if she's ahead, she intends to stay there, quietly, the whole way.",
     personalityProfile: {
-      Determination: 8,
-      Kindness: 6,
-      Confidence: 7,
-      Competitiveness: 8,
-      Discipline: 8,
+      Determination: 9,
+      Kindness: 4,
+      Confidence: 6,
+      Competitiveness: 6,
+      Discipline: 6,
       Chaos: 2,
       Optimism: 6
     }
@@ -191,12 +191,12 @@ export const CHARACTERS = [
     raceStrategy:
       "Studies the field beforehand and races the plan, not the moment — precise positioning, calculated moves, minimal wasted effort.",
     personalityProfile: {
-      Determination: 8,
+      Determination: 7,
       Kindness: 6,
-      Confidence: 7,
-      Competitiveness: 8,
-      Discipline: 9,
-      Chaos: 3,
+      Confidence: 8,
+      Competitiveness: 9,
+      Discipline: 10,
+      Chaos: 1,
       Optimism: 5
     }
   },
