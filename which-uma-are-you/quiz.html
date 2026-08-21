@@ -7,17 +7,20 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="page">
+  <div class="page page-enter">
     <a href="index.html" class="top-link">← Exit quiz</a>
 
     <div class="quiz-header">
-      <div class="progress-track">
-        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+      <div class="quiz-bib-row">
+        <div class="quiz-bib">
+          <span class="bib-current" id="bib-current">01</span><span class="bib-sep"> / </span><span class="bib-total" id="bib-total">25</span>
+        </div>
+        <div class="quiz-pct" id="quiz-pct">4%</div>
       </div>
-      <div class="progress-label" id="progress-label">Question 1 of 15</div>
+      <div class="lane-track" id="lane-track" aria-hidden="true"></div>
     </div>
 
-    <div class="question-card">
+    <div class="question-card" id="question-card">
       <div class="question-index" id="question-index">QUESTION 1</div>
       <div class="question-text" id="question-text"></div>
       <div class="answers-list" id="answers-list"></div>

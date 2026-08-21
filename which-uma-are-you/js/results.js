@@ -9,6 +9,10 @@ import { CHARACTERS } from './characters.js';
 import { loadAnswers, clearAnswers } from './storage.js';
 import { computeUserProfile, rankCharacters } from './matching.js';
 
+const prefersReducedMotion =
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 function initials(name) {
   return name
     .split(' ')
@@ -23,12 +27,15 @@ function initials(name) {
  * .character-portrait img / .other-match-avatar img). If the image is
  * missing or fails to load, onerror hides it and the initials show
  * through underneath — no per-character color data needed either way.
+ * The hero portrait loads eagerly (it's the first thing on the page);
+ * other-match thumbnails lazy-load since they usually sit lower down.
  */
-function avatarInnerHTML(character) {
+function avatarInnerHTML(character, { lazy } = {}) {
   const initialsHTML = `<span class="avatar-initials">${initials(character.name)}</span>`;
   if (!character.image) return initialsHTML;
 
-  const img = `<img src="${character.image}" alt="${character.name}" onerror="this.style.display='none'" />`;
+  const loadingAttr = lazy ? 'loading="lazy"' : 'loading="eager"';
+  const img = `<img src="${character.image}" alt="${character.name}" ${loadingAttr} onerror="this.style.display='none'" />`;
   return initialsHTML + img;
 }
 
@@ -67,7 +74,7 @@ export function renderResult(userProfile, matches) {
       const pct = Math.round(m.score);
       return `
         <div class="other-match-row">
-          <span class="other-match-avatar">${avatarInnerHTML(m.character)}</span>
+          <span class="other-match-avatar">${avatarInnerHTML(m.character, { lazy: true })}</span>
           <span class="other-match-name">${m.character.name}</span>
           <span class="other-match-pct">${pct}%</span>
         </div>
@@ -75,27 +82,64 @@ export function renderResult(userProfile, matches) {
     })
     .join('');
 
+  const strengthItems = (best.character.strengths || [])
+    .map((s) => `<li>${s}</li>`)
+    .join('');
+  const weaknessItems = (best.character.weaknesses || [])
+    .map((w) => `<li>${w}</li>`)
+    .join('');
+
   const bestPct = Math.round(best.score);
 
   container.innerHTML = `
     <div class="result-hero">
       <span class="badge">🏆 Your Match</span>
-      <div class="character-portrait">
-        ${avatarInnerHTML(best.character)}
+      <div class="eyebrow">You Are</div>
+
+      <div class="portrait-frame">
+        <div class="character-portrait">
+          ${avatarInnerHTML(best.character, { lazy: false })}
+        </div>
+        <div class="finish-sweep"></div>
       </div>
+
       <div class="character-name">${best.character.name}</div>
       <div class="character-tagline">${best.character.tagline}</div>
+
+      <div class="match-badge">
+        <span class="match-percent" id="match-percent">${prefersReducedMotion ? bestPct : 0}%</span>
+        <span class="match-percent-label">Match</span>
+      </div>
     </div>
 
-    <div class="character-blurb">
-      ${best.character.summary}
-      <br /><br />
-      You matched <span class="match-score">${bestPct}%</span> with ${best.character.name}.
-    </div>
-
-    <div class="section-title">Your Trait Profile</div>
+    <div class="section-title">Personality Profile</div>
     <div class="trait-bars">
       ${traitRows}
+    </div>
+
+    <div class="section-title">Why You Match</div>
+    <div class="match-card">
+      <p class="match-summary">${best.character.summary}</p>
+
+      ${
+        strengthItems
+          ? `<div class="trait-list-group">
+               <div class="trait-list-title is-strength">Strengths</div>
+               <ul class="trait-list is-strength">${strengthItems}</ul>
+             </div>`
+          : ''
+      }
+
+      ${
+        weaknessItems
+          ? `<div class="trait-list-group">
+               <div class="trait-list-title is-weakness">Weaknesses</div>
+               <ul class="trait-list is-weakness">${weaknessItems}</ul>
+             </div>`
+          : ''
+      }
+
+      ${best.character.raceStrategy ? `<p class="race-strategy">${best.character.raceStrategy}</p>` : ''}
     </div>
 
     <div class="section-title">Other Close Matches</div>
@@ -110,6 +154,24 @@ export function renderResult(userProfile, matches) {
       el.style.width = el.getAttribute('data-pct') + '%';
     });
   });
+
+  /* Match-percent count-up -- the signature "finish line" reveal pairs a
+     gold sweep across the portrait (pure CSS, see .finish-sweep) with the
+     number counting up from 0. Skipped under reduced motion: the final
+     value is already rendered above instead. */
+  if (!prefersReducedMotion) {
+    const percentEl = document.getElementById('match-percent');
+    const duration = 900;
+    const start = performance.now();
+    function tick(now) {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      percentEl.textContent = Math.round(eased * bestPct) + '%';
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
 }
 
 function renderEmptyState() {
