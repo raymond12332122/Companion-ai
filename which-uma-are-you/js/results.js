@@ -8,10 +8,17 @@ import { QUESTIONS } from './questions.js';
 import { CHARACTERS } from './characters.js';
 import { loadAnswers, clearAnswers } from './storage.js';
 import { computeUserProfile, rankCharacters } from './matching.js';
+import { initAudioToggle, playResultsRevealSfx } from './audio.js';
+import { initChibiLayer } from './chibi.js';
 
 const prefersReducedMotion =
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* 6 small CSS-only spark particles for the results reveal, staggered via
+   nth-child delays in style.css. Skipped entirely under reduced motion
+   (never inserted), same treatment as the finish-sweep and count-up. */
+const PARTICLE_SPANS = Array.from({ length: 6 }, () => '<span class="spark"></span>').join('');
 
 function initials(name) {
   return name
@@ -101,6 +108,7 @@ export function renderResult(userProfile, matches) {
           ${avatarInnerHTML(best.character, { lazy: false })}
         </div>
         <div class="finish-sweep"></div>
+        ${prefersReducedMotion ? '' : PARTICLE_SPANS}
       </div>
 
       <div class="character-name">${best.character.name}</div>
@@ -157,9 +165,11 @@ export function renderResult(userProfile, matches) {
 
   /* Match-percent count-up -- the signature "finish line" reveal pairs a
      gold sweep across the portrait (pure CSS, see .finish-sweep) with the
-     number counting up from 0. Skipped under reduced motion: the final
-     value is already rendered above instead. */
+     number counting up from 0, a few spark particles, and one SFX cue.
+     All of it is one decorative unit, so it's skipped together under
+     reduced motion: the final value is already rendered above instead. */
   if (!prefersReducedMotion) {
+    playResultsRevealSfx();
     const percentEl = document.getElementById('match-percent');
     const duration = 900;
     const start = performance.now();
@@ -199,9 +209,12 @@ if (!isComplete) {
   const userProfile = computeUserProfile(answers);
   const matches = rankCharacters(userProfile, CHARACTERS);
   renderResult(userProfile, matches);
+  initChibiLayer('chibi-layer'); /* only around an actual result card */
 }
 
 document.getElementById('retake-btn').addEventListener('click', () => {
   clearAnswers();
   window.location.href = 'quiz.html';
 });
+
+initAudioToggle(document.getElementById('audio-toggle'));

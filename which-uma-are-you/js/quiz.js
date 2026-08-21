@@ -4,9 +4,24 @@
 
 import { QUESTIONS } from './questions.js';
 import { loadAnswers, saveAnswers } from './storage.js';
+import { initAudioToggle, playSelectionSfx } from './audio.js';
+import { initChibiLayer, maybeChibiReaction } from './chibi.js';
+
+const prefersReducedMotion =
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* How long the selection feedback (card animation + SFX + chibi chance)
+   plays before auto-advancing. Chosen to land the whole selection ->
+   advance sequence in the 300-500ms range this pass asked for; shorter
+   under reduced motion since there's no animation to wait out, just a
+   brief pause so the tap still feels acknowledged before the view
+   changes. */
+const ADVANCE_DELAY_MS = prefersReducedMotion ? 150 : 420;
 
 let answers = loadAnswers(QUESTIONS.length);
 let currentIndex = 0;
+let advanceTimer = null;
 
 const bibCurrentEl = document.getElementById('bib-current');
 const bibTotalEl = document.getElementById('bib-total');
@@ -32,7 +47,7 @@ const TRAIT_FX_CLASS = {
   Optimism: 'fx-optimism'
 };
 
-function dominantTraitFxClass(weights) {
+function dominantTrait(weights) {
   let bestTrait = null;
   let bestValue = -Infinity;
   Object.keys(weights).forEach((trait) => {
@@ -41,7 +56,7 @@ function dominantTraitFxClass(weights) {
       bestTrait = trait;
     }
   });
-  return TRAIT_FX_CLASS[bestTrait] || null;
+  return bestTrait;
 }
 
 function buildLaneTrack() {
@@ -114,18 +129,37 @@ function renderQuestion(opts = {}) {
 }
 
 function selectAnswer(i) {
+  if (advanceTimer) {
+    clearTimeout(advanceTimer);
+    advanceTimer = null;
+  }
+
   answers[currentIndex] = i;
   saveAnswers(answers);
   renderQuestion();
 
-  const fxClass = dominantTraitFxClass(QUESTIONS[currentIndex].answers[i].weights);
+  const trait = dominantTrait(QUESTIONS[currentIndex].answers[i].weights);
+  const fxClass = TRAIT_FX_CLASS[trait];
   const selectedBtn = answersListEl.children[i];
   if (fxClass && selectedBtn) {
     selectedBtn.classList.add(fxClass);
   }
+
+  playSelectionSfx(trait);
+  maybeChibiReaction();
+
+  /* Selecting an answer auto-advances after a short beat so the tap
+     itself (card state, trait fx, SFX, occasional chibi) has time to
+     register. Next still works — it just cancels this timer and
+     advances immediately, so it's a "skip the wait" control rather than
+     a separate mechanism, and there's no path where both could fire. */
+  advanceTimer = setTimeout(() => {
+    advanceTimer = null;
+    advance();
+  }, ADVANCE_DELAY_MS);
 }
 
-function goNext() {
+function advance() {
   if (answers[currentIndex] === null) return;
 
   if (currentIndex === QUESTIONS.length - 1) {
@@ -136,7 +170,20 @@ function goNext() {
   renderQuestion({ animateCard: true });
 }
 
+function goNext() {
+  if (answers[currentIndex] === null) return;
+  if (advanceTimer) {
+    clearTimeout(advanceTimer);
+    advanceTimer = null;
+  }
+  advance();
+}
+
 function goPrev() {
+  if (advanceTimer) {
+    clearTimeout(advanceTimer);
+    advanceTimer = null;
+  }
   if (currentIndex === 0) return;
   currentIndex--;
   renderQuestion({ animateCard: true });
@@ -153,3 +200,6 @@ prevBtn.addEventListener('click', goPrev);
 
 buildLaneTrack();
 renderQuestion();
+
+initAudioToggle(document.getElementById('audio-toggle'));
+initChibiLayer('chibi-layer');

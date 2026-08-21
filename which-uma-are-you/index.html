@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <button class="audio-toggle" id="audio-toggle" type="button">🔊</button>
+
   <div class="page page-enter">
     <div class="rail-strip"></div>
 
@@ -35,10 +37,14 @@
     </p>
   </div>
 
-  <script>
+  <script type="module">
+    import { initAudioToggle } from './js/audio.js';
+
     document.getElementById('start-btn').addEventListener('click', function () {
       window.location.href = 'quiz.html';
     });
+
+    initAudioToggle(document.getElementById('audio-toggle'));
   </script>
 </body>
 </html>

@@ -655,6 +655,44 @@ h1, h2, h3 {
   to { left: 120%; opacity: 1; }
 }
 
+/* Subtle spark particles for the results reveal -- 6 fixed positions
+   around the portrait ring, staggered so they don't all pop at once.
+   Inserted only when !prefersReducedMotion (see results.js); the global
+   reduced-motion override below would neutralize them anyway, but not
+   inserting them at all keeps the DOM cleaner in that case. */
+.spark {
+  --spark-angle: 0deg;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  opacity: 0;
+  pointer-events: none;
+  animation: spark-pop 900ms var(--ease-pop) both;
+}
+
+.spark:nth-child(1) { --spark-angle: 15deg; animation-delay: 0ms; }
+.spark:nth-child(2) { --spark-angle: 85deg; background: var(--cyan); animation-delay: 200ms; }
+.spark:nth-child(3) { --spark-angle: 150deg; background: var(--pink); animation-delay: 60ms; }
+.spark:nth-child(4) { --spark-angle: 210deg; animation-delay: 140ms; }
+.spark:nth-child(5) { --spark-angle: 270deg; background: var(--cyan); animation-delay: 40ms; }
+.spark:nth-child(6) { --spark-angle: 330deg; background: var(--pink); animation-delay: 180ms; }
+
+@keyframes spark-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(-90px) scale(0.4);
+  }
+  35% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(-130px) scale(1);
+  }
+}
+
 .character-name {
   font-size: 1.85rem;
   font-weight: 800;
@@ -911,6 +949,70 @@ h1, h2, h3 {
   margin-top: 24px;
   line-height: 1.5;
 }
+
+/* ---------- Audio toggle ---------- */
+.audio-toggle {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 30;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg-2);
+  color: var(--text);
+  font-size: 1.15rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--fx-fast) ease, transform 120ms var(--ease-snap);
+}
+
+.audio-toggle:hover { background: #262a52; }
+.audio-toggle:active { transform: scale(0.94); }
+
+.audio-toggle:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* ---------- Chibi companions ---------- */
+/* Fixed overlay covering the viewport; individual peeks are positioned
+   absolutely within it. pointer-events:none throughout so a chibi can
+   never intercept a tap meant for the quiz/results UI underneath it. */
+.chibi-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  overflow: hidden;
+}
+
+.chibi-peek {
+  position: absolute;
+  width: 84px;
+  height: auto;
+  opacity: 0;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
+  transition: opacity 380ms ease, transform 380ms var(--ease-pop);
+}
+
+.chibi-edge-left { left: -20px; transform: translateX(-100%); }
+.chibi-edge-right { right: -20px; transform: translateX(100%); }
+.chibi-edge-top { top: -20px; transform: translateY(-100%); }
+
+.chibi-peek-in.chibi-edge-left { opacity: 1; transform: translateX(-6px); }
+.chibi-peek-in.chibi-edge-right { opacity: 1; transform: translateX(6px); }
+.chibi-peek-in.chibi-edge-top { opacity: 1; transform: translateY(6px); }
+
+.chibi-peek-out.chibi-edge-left { opacity: 0; transform: translateX(-100%); }
+.chibi-peek-out.chibi-edge-right { opacity: 0; transform: translateX(100%); }
+.chibi-peek-out.chibi-edge-top { opacity: 0; transform: translateY(-100%); }
 
 /* ---------- Page-level entrance/transition ---------- */
 .page-enter {
