@@ -188,6 +188,15 @@ function spawnBehindCardPeek(character) {
   } else {
     left = cardRect.right - pageRect.left - size * 0.65;
   }
+  /* .page has no overflow clipping of its own (unlike .chibi-layer,
+     which is a fixed overlay with overflow:hidden), and the card spans
+     nearly the page's full width -- so the tr/br corners' unclamped
+     offset above pushes the peek's right edge past the page's own
+     right edge, which genuinely grows the document's scrollable width.
+     Clamp into the page's box so the "poke out from the corner" look
+     stays, without ever exceeding the page's own bounds. */
+  left = Math.max(0, Math.min(left, pageRect.width - size));
+  top = Math.max(0, Math.min(top, pageRect.height - size));
   el.style.top = `${top}px`;
   el.style.left = `${left}px`;
 

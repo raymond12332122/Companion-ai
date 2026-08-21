@@ -1070,53 +1070,54 @@ h1, h2, h3 {
 .chibi-peek-out.chibi-behind { opacity: 0; transform: scale(0.7); }
 
 /* ---------- Walking companions banner (quiz header) ---------- */
-/* Special Week & Silence Suzuka's walking-chibi clip, cropped to just
-   the action band and looped as a quiet decorative strip between the
-   progress header and the question card -- muted/autoplay, so it never
-   competes with the audio-toggle SFX.
+/* Special Week & Silence Suzuka's walking-chibi clip, muted/looped.
 
-   Mobile-first budget: .page is min-height:100vh with .question-card as
-   a flex:1 spacer, and at the 320-390px widths this project targets
-   that spacer already has very little slack (~44px) before the
-   Previous/Next row gets pushed toward or past the fold -- that's true
-   with or without this banner, it's just how tight the existing V0.6.2
-   layout runs on the narrowest phones. A width-driven `height: auto`
-   strip scales *up* with viewport width (taller video = taller banner),
-   which blows straight through that budget. Fixing the height instead
-   (object-fit: cover crops the clip to fit) keeps the banner's footprint
-   flat and small across every mobile width, so it stops competing with
-   the buttons; only past the desktop breakpoint below does it get to
-   grow into the fuller aspect-ratio strip. */
+   This is NOT sized down for mobile -- it is absent from mobile's
+   document flow entirely (display:none below 700px), and that's a
+   deliberate, measured call, not a shortcut:
+
+   .page is min-height:100vh with .question-card as a flex:1 spacer, and
+   on a real Android viewport (Pixel 5, 393x727 CSS px -- notably
+   *shorter* than the 844px this project's own screenshot tooling had
+   been using, since a real mobile browser's address/gesture bars eat
+   real vertical space) V0.6.2 already runs with only ~36px of slack
+   before the Previous/Next row hits the fold. That budget is effectively
+   zero: even a 40px-tall cropped strip (see git history on this block
+   for that attempt) was enough by itself to push the CTA below the fold
+   on that device, where V0.6.2 fit fine. There's no height this element
+   could take in normal flow that both (a) reads as a real "walking
+   companions" banner and (b) reliably fits that budget across
+   mainstream phones -- so it doesn't try to. Past the 700px desktop
+   breakpoint the same budget has plenty of room (verified), and that's
+   where it shows, full aspect-ratio, as a desktop enhancement.
+
+   The two dance-clip chibi peeks (gold-ship/oguri-cap in js/chibi.js)
+   are unaffected by any of this -- they're position:absolute overlays
+   in .chibi-layer / appended to .page with zero document-flow height,
+   so they stay visible on mobile same as any other chibi peek. */
 .walking-banner {
-  width: 100%;
-  max-width: 360px;
-  height: 40px;
-  margin: 2px auto 6px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  opacity: 0.9;
+  display: none;
 }
 
 .walking-banner-video {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 30%;
+  height: auto;
 }
 
 @media (min-width: 700px) {
   .walking-banner {
-    height: auto;
+    display: block;
+    width: 100%;
     max-width: 420px;
-  }
-  .walking-banner-video {
-    height: auto;
-    object-fit: initial;
+    margin: 2px auto 6px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    opacity: 0.9;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+@media (min-width: 700px) and (prefers-reduced-motion: reduce) {
   .walking-banner { display: none; }
 }
 
