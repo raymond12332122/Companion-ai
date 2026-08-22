@@ -20,6 +20,8 @@ Keep these small (a chibi renders around 80-100px wide on screen) and
 transparent-background where possible — they appear briefly over the
 existing UI, not inside a card.
 
-Two characters, `gold-ship` and `oguri-cap`, use a short looping video
-clip instead of a static image here — see `CHIBI_VIDEO_MAP` in
-`js/chibi.js` and `assets/videos/chibis/README.md` for those.
+Four characters -- `gold-ship`, `oguri-cap`, `special-week`, and
+`silence-suzuka` -- use a short looping video clip instead of a static
+image here (the latter two share one clip, since that's the asset as
+provided) — see `CHIBI_VIDEO_MAP` in `js/chibi.js` and
+`assets/videos/chibis/README.md` for those.

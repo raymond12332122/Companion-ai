@@ -16,11 +16,15 @@
 
    Draws from the full current roster generically (by id), not a
    hardcoded character list, matching how the rest of this project
-   already treats the roster as open-ended data. Two characters
-   (gold-ship, oguri-cap) additionally have a short looping dance-clip
-   peek (see CHIBI_VIDEO_MAP) trimmed from the source dance videos in
-   assets/videos/chibis/ — everyone else without a listed clip falls
-   back to the static-image path, same as before.
+   already treats the roster as open-ended data. Four characters
+   additionally have a short looping video-clip peek instead of a static
+   image (see CHIBI_VIDEO_MAP), each trimmed/cropped from the real source
+   videos in assets/videos/chibis/ (never generated/CSS-only content):
+   gold-ship and oguri-cap get their own dance clips, and special-week +
+   silence-suzuka share the one clip they're both actually in (cropped
+   to the moment they're walking side by side) since that's the asset as
+   provided -- everyone else without a listed clip falls back to the
+   plain static-image path, same as before.
 
    Entrance "flavor" (how snappy/bouncy/gentle the pop-in feels) is
    derived from each character's own existing personalityProfile —
@@ -48,6 +52,14 @@ const CHIBI_VIDEO_MAP = {
   'oguri-cap': {
     webm: 'assets/videos/chibis/oguricap-peek.webm',
     mp4: 'assets/videos/chibis/oguricap-peek.mp4'
+  },
+  'special-week': {
+    webm: 'assets/videos/chibis/walking-peek.webm',
+    mp4: 'assets/videos/chibis/walking-peek.mp4'
+  },
+  'silence-suzuka': {
+    webm: 'assets/videos/chibis/walking-peek.webm',
+    mp4: 'assets/videos/chibis/walking-peek.mp4'
   }
 };
 

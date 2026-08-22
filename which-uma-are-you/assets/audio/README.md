@@ -17,9 +17,6 @@ assets/audio/
   select.mp3            fallback, only used if a trait name isn't recognized
   results-reveal.mp3     plays once, when the results page reveals a match
   easter-egg.mp3          rare (~6% per answer), replaces the trait sound
-  special-week-rain.mp3   very rare (~0.2% per answer, once per session),
-                          plays alongside the Special Week Rain overlay --
-                          see js/specialWeekRain.js
 ```
 
 All files are short SFX (well under a second is plenty) — these play on
