@@ -130,34 +130,109 @@ function randomBetween(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function createPeekMedia(character) {
-  const sources = CHIBI_VIDEO_MAP[character.id];
-  if (sources) {
-    const video = document.createElement('video');
-    video.muted = true;
-    video.playsInline = true;
-    video.loop = true;
-    video.autoplay = true;
-    /* webm/vp9 first, mp4/h264 as the fallback -- the browser picks
-       whichever source it actually supports; the video only errors out
-       (removed by the same onerror path as a missing image) if neither
-       does. */
-    const webmSource = document.createElement('source');
-    webmSource.src = sources.webm;
-    webmSource.type = 'video/webm';
-    const mp4Source = document.createElement('source');
-    mp4Source.src = sources.mp4;
-    mp4Source.type = 'video/mp4';
-    video.appendChild(webmSource);
-    video.appendChild(mp4Source);
-    return { el: video, isVideo: true };
+/* The source videos are chibis rendered on a solid black background, and
+   plain <video> has no way to make that transparent in a browser --
+   video elements never composite an alpha channel, even for formats
+   that could technically carry one. Real-time "black matte" keying via
+   a hidden <video> decoding into a same-size <canvas> is the standard,
+   reliable way around that: for each frame, treat luma (the brightest
+   of R/G/B) as an alpha estimate -- near-black pixels go fully
+   transparent, near-full-brightness pixels stay fully opaque, and the
+   thin anti-aliased band between is un-premultiplied (divided back out
+   by its own alpha) instead of just faded, which is what keeps the
+   character's edge pixels their real color instead of fading to a dark
+   halo. The canvas is what actually gets positioned/animated as the
+   peek; the <video> that feeds it stays off-screen (1x1, opacity 0) but
+   present in the DOM so it keeps decoding. */
+const CHROMA_KEY_LOW = 14; /* at or below: fully transparent */
+const CHROMA_KEY_HIGH = 60; /* at or above: fully opaque, left as-is */
+
+function createChromaKeyPeek(sources) {
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.loop = true;
+  video.autoplay = true;
+  video.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
+  /* webm/vp9 first, mp4/h264 as the fallback -- the browser picks
+     whichever source it actually supports; the video only errors out
+     (removed by the same onerror path as a missing image) if neither
+     does. */
+  const webmSource = document.createElement('source');
+  webmSource.src = sources.webm;
+  webmSource.type = 'video/webm';
+  const mp4Source = document.createElement('source');
+  mp4Source.src = sources.mp4;
+  mp4Source.type = 'video/mp4';
+  video.appendChild(webmSource);
+  video.appendChild(mp4Source);
+
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('aria-hidden', 'true');
+  let ctx = null;
+  let rafId = null;
+  let stopped = false;
+
+  function drawFrame() {
+    if (stopped) return;
+    if (video.readyState >= 2 && !video.paused && !video.ended) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = frame.data;
+      const range = CHROMA_KEY_HIGH - CHROMA_KEY_LOW;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const luma = r > g ? (r > b ? r : b) : g > b ? g : b;
+        if (luma <= CHROMA_KEY_LOW) {
+          data[i + 3] = 0;
+        } else if (luma < CHROMA_KEY_HIGH) {
+          const alpha = (luma - CHROMA_KEY_LOW) / range;
+          data[i] = Math.min(255, r / alpha);
+          data[i + 1] = Math.min(255, g / alpha);
+          data[i + 2] = Math.min(255, b / alpha);
+          data[i + 3] = Math.round(alpha * 255);
+        }
+      }
+      ctx.putImageData(frame, 0, 0);
+    }
+    rafId = requestAnimationFrame(drawFrame);
   }
-  const img = document.createElement('img');
-  img.src = `assets/chibis/${character.id}.webp`;
-  return { el: img, isVideo: false };
+
+  video.addEventListener(
+    'loadeddata',
+    () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx = canvas.getContext('2d', { willReadFrequently: true });
+      rafId = requestAnimationFrame(drawFrame);
+    },
+    { once: true }
+  );
+
+  return {
+    el: canvas,
+    isVideo: true,
+    readyEl: video,
+    cleanup: () => {
+      stopped = true;
+      if (rafId) cancelAnimationFrame(rafId);
+      video.pause();
+      video.remove();
+    }
+  };
 }
 
-function settleAndAnimate(el, isVideo) {
+function createPeekMedia(character) {
+  const sources = CHIBI_VIDEO_MAP[character.id];
+  if (sources) return createChromaKeyPeek(sources);
+  const img = document.createElement('img');
+  img.src = `assets/chibis/${character.id}.webp`;
+  return { el: img, isVideo: false, readyEl: img, cleanup: null };
+}
+
+function settleAndAnimate(el, isVideo, cleanup) {
   active++;
   requestAnimationFrame(() => el.classList.add('chibi-peek-in'));
   const hold = isVideo ? randomBetween(HOLD_MS_VIDEO_MIN, HOLD_MS_VIDEO_MAX) : randomBetween(HOLD_MS_MIN, HOLD_MS_MAX);
@@ -165,6 +240,7 @@ function settleAndAnimate(el, isVideo) {
     el.classList.remove('chibi-peek-in');
     el.classList.add('chibi-peek-out');
     setTimeout(() => {
+      cleanup?.();
       el.remove();
       active = Math.max(0, active - 1);
     }, EXIT_MS);
@@ -173,13 +249,13 @@ function settleAndAnimate(el, isVideo) {
 
 function spawnEdgePeek(character) {
   if (!layerEl) return;
-  const { el, isVideo } = createPeekMedia(character);
+  const { el, isVideo, readyEl, cleanup } = createPeekMedia(character);
   const edge = EDGES[Math.floor(Math.random() * EDGES.length)];
   const flavor = dominantFlavor(character);
 
-  el.alt = '';
   el.setAttribute('aria-hidden', 'true');
   el.className = `chibi-peek chibi-edge-${edge} chibi-flavor-${flavor}`;
+  if (!isVideo) el.alt = '';
 
   if (edge === 'left' || edge === 'right') {
     el.style.top = 15 + Math.random() * 60 + '%';
@@ -189,10 +265,11 @@ function spawnEdgePeek(character) {
   /* corners (tl/tr/bl/br) need no extra offset -- their CSS anchors them
      directly to a screen corner. */
 
-  el.addEventListener('error', () => el.remove(), { once: true });
-  el.addEventListener(isVideo ? 'loadeddata' : 'load', () => settleAndAnimate(el, isVideo), { once: true });
+  readyEl.addEventListener('error', () => { cleanup?.(); el.remove(); }, { once: true });
+  readyEl.addEventListener(isVideo ? 'loadeddata' : 'load', () => settleAndAnimate(el, isVideo, cleanup), { once: true });
 
   layerEl.appendChild(el);
+  if (isVideo) layerEl.appendChild(readyEl);
 }
 
 /* Pops up at a random spot anywhere in the viewport rather than sliding
@@ -200,19 +277,20 @@ function spawnEdgePeek(character) {
    the chibi-layer overlay (z-index above the page) like edge peeks. */
 function spawnFloatPeek(character) {
   if (!layerEl) return;
-  const { el, isVideo } = createPeekMedia(character);
+  const { el, isVideo, readyEl, cleanup } = createPeekMedia(character);
   const flavor = dominantFlavor(character);
 
-  el.alt = '';
   el.setAttribute('aria-hidden', 'true');
   el.className = `chibi-peek chibi-float chibi-flavor-${flavor}`;
+  if (!isVideo) el.alt = '';
   el.style.top = 10 + Math.random() * 70 + '%';
   el.style.left = 8 + Math.random() * 74 + '%';
 
-  el.addEventListener('error', () => el.remove(), { once: true });
-  el.addEventListener(isVideo ? 'loadeddata' : 'load', () => settleAndAnimate(el, isVideo), { once: true });
+  readyEl.addEventListener('error', () => { cleanup?.(); el.remove(); }, { once: true });
+  readyEl.addEventListener(isVideo ? 'loadeddata' : 'load', () => settleAndAnimate(el, isVideo, cleanup), { once: true });
 
   layerEl.appendChild(el);
+  if (isVideo) layerEl.appendChild(readyEl);
 }
 
 /* Anchored to a corner of the current question/result card and appended
@@ -227,12 +305,12 @@ function spawnBehindCardPeek(character) {
 
   const pageRect = page.getBoundingClientRect();
   const cardRect = card.getBoundingClientRect();
-  const { el, isVideo } = createPeekMedia(character);
+  const { el, isVideo, readyEl, cleanup } = createPeekMedia(character);
   const flavor = dominantFlavor(character);
 
-  el.alt = '';
   el.setAttribute('aria-hidden', 'true');
   el.className = `chibi-peek chibi-behind chibi-flavor-${flavor}`;
+  if (!isVideo) el.alt = '';
 
   const size = 96;
   const corners = ['tl', 'tr', 'bl', 'br'];
@@ -261,10 +339,11 @@ function spawnBehindCardPeek(character) {
   el.style.top = `${top}px`;
   el.style.left = `${left}px`;
 
-  el.addEventListener('error', () => el.remove(), { once: true });
-  el.addEventListener(isVideo ? 'loadeddata' : 'load', () => settleAndAnimate(el, isVideo), { once: true });
+  readyEl.addEventListener('error', () => { cleanup?.(); el.remove(); }, { once: true });
+  readyEl.addEventListener(isVideo ? 'loadeddata' : 'load', () => settleAndAnimate(el, isVideo, cleanup), { once: true });
 
   page.appendChild(el);
+  if (isVideo) page.appendChild(readyEl);
 }
 
 function spawnPeek() {

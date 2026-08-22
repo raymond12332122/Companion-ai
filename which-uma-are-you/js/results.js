@@ -20,6 +20,20 @@ const prefersReducedMotion =
    (never inserted), same treatment as the finish-sweep and count-up. */
 const PARTICLE_SPANS = Array.from({ length: 6 }, () => '<span class="spark"></span>').join('');
 
+/* One emoji per trait for the "stat gauge" row -- purely decorative
+   labeling, reads the same fixed TRAITS list already used everywhere
+   else in this file, so a roster-wide trait rename stays a one-line
+   change in traits.js rather than needing a second lookup kept in sync. */
+const TRAIT_ICONS = {
+  Determination: '🔥',
+  Kindness: '💗',
+  Confidence: '⭐',
+  Competitiveness: '⚡',
+  Discipline: '🎯',
+  Chaos: '🌪️',
+  Optimism: '☀️'
+};
+
 function initials(name) {
   return name
     .split(' ')
@@ -90,8 +104,9 @@ export function renderResult(userProfile, matches) {
     return `
       <div class="trait-row">
         <div class="trait-row-top">
-          <span>${t}</span>
-          <span>${pct}%</span>
+          <span class="trait-icon">${TRAIT_ICONS[t] || ''}</span>
+          <span class="trait-name">${t}</span>
+          <span class="trait-pct">${pct}%</span>
         </div>
         <div class="trait-track">
           <div class="trait-fill" data-pct="${pct}"></div>
@@ -101,10 +116,11 @@ export function renderResult(userProfile, matches) {
   }).join('');
 
   const otherRows = others
-    .map((m) => {
+    .map((m, i) => {
       const pct = Math.round(m.score);
       return `
         <div class="other-match-row">
+          <span class="other-match-rank">#${i + 2}</span>
           <span class="other-match-avatar">${avatarInnerHTML(m.character, { lazy: true })}</span>
           <span class="other-match-name">${m.character.name}</span>
           <span class="other-match-pct">${pct}%</span>
@@ -128,6 +144,7 @@ export function renderResult(userProfile, matches) {
       <div class="eyebrow">You Are</div>
 
       <div class="portrait-frame">
+        <div class="portrait-checker-ring" aria-hidden="true"></div>
         ${heroPortraitHTML(best.character)}
         <div class="finish-sweep"></div>
         ${prefersReducedMotion ? '' : PARTICLE_SPANS}
