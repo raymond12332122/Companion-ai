@@ -1,13 +1,18 @@
 /* ==========================================================================
    Which Uma Are You? — Special Week Rain Easter Egg
 
-   An extremely rare, purely decorative interruption: Special Week pops
-   up center-screen for a couple of seconds under a playful CSS "rain"
-   effect, then fades away on its own and lets the quiz continue exactly
-   where it was. Visual only -- never reads or writes an answer, never
-   touches matching.js/storage.js/characters.js, and renders as an
-   overlay on top of whatever's already on screen rather than replacing
-   it.
+   An extremely rare, purely decorative interruption: a dozen or so
+   copies of Special Week's own portrait fall from the top of the
+   screen like rain -- different horizontal spots, fall speeds,
+   rotations, and delays so it reads as chaotic and funny -- bounce
+   briefly at the bottom, then the whole overlay clears on its own and
+   the quiz continues exactly where it was. This is "Special Week"
+   rain, not weather: no water drops, no clouds, nothing generic --
+   every falling thing on screen is recognizably her.
+
+   Visual only -- never reads or writes an answer, never touches
+   matching.js/storage.js/characters.js, and renders as an overlay on
+   top of whatever's already on screen rather than replacing it.
 
    Audio gating matches the documented pattern in audio.js: the only
    call site is quiz.js's answer-select handler, which is already behind
@@ -22,24 +27,33 @@ const prefersReducedMotion =
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+const SPECIAL_WEEK_SRC = 'assets/characters/special-week.webp';
+
 /* Deliberately tiny -- combined with the once-per-session cap below,
    this lands at roughly a 1-in-20 full 25-question playthrough, so
    actually seeing it feels like a real find rather than something
    every run produces. */
 const TRIGGER_CHANCE = 0.002;
-const RAINDROP_COUNT = 18;
-const HOLD_MS = 2600;
+const SPRITE_COUNT = 12;
+const HOLD_MS = 3000;
 const FADE_MS = 500;
 
 let firedThisSession = false;
 
-function buildRaindrops() {
+/* Each falling sprite gets its own horizontal spot, fall duration,
+   start delay, and rotation range, set as inline style/custom
+   properties -- the shared @keyframes (sw-chibi-fall in style.css)
+   reads --sw-spin via var() and includes its own bounce-then-fade tail,
+   so it automatically scales to whichever random duration lands here. */
+function buildFallingSprites() {
   let html = '';
-  for (let i = 0; i < RAINDROP_COUNT; i++) {
-    const left = Math.random() * 100;
-    const delay = Math.random() * 0.7;
-    const duration = 0.85 + Math.random() * 0.55;
-    html += `<span class="sw-raindrop" style="left:${left}%; animation-delay:${delay}s; animation-duration:${duration}s;"></span>`;
+  for (let i = 0; i < SPRITE_COUNT; i++) {
+    const left = 2 + Math.random() * 92;
+    const delay = Math.random() * 1.1;
+    const duration = 1.5 + Math.random() * 1.3;
+    const spin = Math.round(-35 + Math.random() * 70);
+    const size = 44 + Math.round(Math.random() * 22);
+    html += `<img class="sw-chibi-drop" src="${SPECIAL_WEEK_SRC}" alt="" style="left:${left}%; width:${size}px; --sw-spin:${spin}deg; animation-delay:${delay}s; animation-duration:${duration}s;" onerror="this.remove()" />`;
   }
   return html;
 }
@@ -56,18 +70,9 @@ function showSpecialWeekRain() {
   overlay.className = 'sw-rain-overlay';
   overlay.setAttribute('role', 'presentation');
   overlay.innerHTML = `
-    <div class="sw-rain-drops" aria-hidden="true">${buildRaindrops()}</div>
-    <div class="sw-rain-card">
-      <img
-        class="sw-rain-portrait"
-        src="assets/characters/special-week.webp"
-        alt=""
-        onerror="this.remove()"
-      />
-      <div class="sw-rain-caption">🌧️ Special Week Rain! 🌧️</div>
-      <div class="sw-rain-subcaption">She showed up anyway — rain or shine.</div>
-      <div class="sw-rain-hint">(tap to continue)</div>
-    </div>
+    <div class="sw-rain-caption">🐴 Special Week Rain! 🐴</div>
+    <div class="sw-rain-drops" aria-hidden="true">${buildFallingSprites()}</div>
+    <div class="sw-rain-hint">(tap to continue)</div>
   `;
   overlay.addEventListener('click', () => dismiss(overlay), { once: true });
   document.body.appendChild(overlay);
@@ -80,10 +85,11 @@ function showSpecialWeekRain() {
 /**
  * Rolls the (very low) chance and, if it hits, shows the rain event.
  * Call from quiz.js's answer-select handler alongside maybeChibiReaction
- * -- same trigger point, independent roll. No-ops under reduced motion
- * (the "disable" option, not "simplify" -- consistent with how every
- * other decorative animation in this app already treats reduced motion)
- * or once it's already fired this session.
+ * -- same trigger point, independent roll, and entirely separate from
+ * the regular chibi interruption system in chibi.js. No-ops under
+ * reduced motion (the "disable" option, not "simplify" -- consistent
+ * with how every other decorative animation in this app already treats
+ * reduced motion) or once it's already fired this session.
  */
 export function maybeSpecialWeekRain() {
   if (prefersReducedMotion || firedThisSession) return;
