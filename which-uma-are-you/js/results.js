@@ -101,6 +101,10 @@ export function renderResult(userProfile, matches) {
 
   const traitRows = TRAITS.map((t) => {
     const pct = Math.round(userProfile[t] * 100);
+    /* Tiers the fill color by strength -- gold for a standout trait,
+       the default cyan/pink gradient otherwise -- so color carries real
+       information about the stat sheet rather than just decorating it. */
+    const tierClass = pct >= 60 ? ' is-standout' : '';
     return `
       <div class="trait-row">
         <div class="trait-row-top">
@@ -109,7 +113,7 @@ export function renderResult(userProfile, matches) {
           <span class="trait-pct">${pct}%</span>
         </div>
         <div class="trait-track">
-          <div class="trait-fill" data-pct="${pct}"></div>
+          <div class="trait-fill${tierClass}" data-pct="${pct}"></div>
         </div>
       </div>
     `;
@@ -118,8 +122,11 @@ export function renderResult(userProfile, matches) {
   const otherRows = others
     .map((m, i) => {
       const pct = Math.round(m.score);
+      /* Silver/bronze accent for #2 and #3 -- a podium cue for the two
+         closest runners-up, rest of the field stays the default look. */
+      const podiumClass = i === 0 ? ' is-podium-silver' : i === 1 ? ' is-podium-bronze' : '';
       return `
-        <div class="other-match-row">
+        <div class="other-match-row${podiumClass}">
           <span class="other-match-rank">#${i + 2}</span>
           <span class="other-match-avatar">${avatarInnerHTML(m.character, { lazy: true })}</span>
           <span class="other-match-name">${m.character.name}</span>
@@ -159,12 +166,12 @@ export function renderResult(userProfile, matches) {
       </div>
     </div>
 
-    <div class="section-title">Personality Profile</div>
+    <div class="section-title">Racing Stats</div>
     <div class="trait-bars">
       ${traitRows}
     </div>
 
-    <div class="section-title">Why You Match</div>
+    <div class="section-title">Race Analysis</div>
     <div class="match-card">
       <p class="match-summary">${best.character.summary}</p>
 
@@ -189,7 +196,7 @@ export function renderResult(userProfile, matches) {
       ${best.character.raceStrategy ? `<p class="race-strategy">${best.character.raceStrategy}</p>` : ''}
     </div>
 
-    <div class="section-title">Other Close Matches</div>
+    <div class="section-title">The Rest Of The Field</div>
     <div class="other-matches">
       ${otherRows}
     </div>

@@ -27,6 +27,7 @@ const bibCurrentEl = document.getElementById('bib-current');
 const bibTotalEl = document.getElementById('bib-total');
 const quizPctEl = document.getElementById('quiz-pct');
 const laneTrackEl = document.getElementById('lane-track');
+const laneMarkerEl = document.getElementById('lane-marker');
 const questionCardEl = document.getElementById('question-card');
 const questionIndexEl = document.getElementById('question-index');
 const questionTextEl = document.getElementById('question-text');
@@ -76,6 +77,16 @@ function updateLaneTrack() {
   fills.forEach((fillEl, i) => {
     fillEl.style.width = i <= currentIndex ? '100%' : '0%';
   });
+
+  /* Rides along the top of the track at the current-question position --
+     a "checkpoint" marker rather than a plain bar, purely visual and
+     independent of buildLaneTrack()'s own DOM (which lives in a sibling
+     element so wiping/rebuilding the segments never touches the marker). */
+  if (laneMarkerEl) {
+    const total = QUESTIONS.length;
+    const pct = ((currentIndex + 1) / total) * 100;
+    laneMarkerEl.style.left = pct + '%';
+  }
 }
 
 function renderQuestion(opts = {}) {
@@ -141,8 +152,14 @@ function selectAnswer(i) {
   const trait = dominantTrait(QUESTIONS[currentIndex].answers[i].weights);
   const fxClass = TRAIT_FX_CLASS[trait];
   const selectedBtn = answersListEl.children[i];
-  if (fxClass && selectedBtn) {
-    selectedBtn.classList.add(fxClass);
+  if (selectedBtn) {
+    /* Fired fresh on every active tap (never replayed just from
+       navigating back to an already-answered question via
+       renderQuestion(), since that path never calls selectAnswer) --
+       a consistent "locked in" ping from the letter badge, layered
+       underneath whichever trait-specific fx plays alongside it. */
+    selectedBtn.classList.add('fx-select-ring');
+    if (fxClass) selectedBtn.classList.add(fxClass);
   }
 
   playSelectionSfx(trait);

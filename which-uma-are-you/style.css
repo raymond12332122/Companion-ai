@@ -94,6 +94,27 @@ body::before {
   to { background-position: -600px 0; }
 }
 
+/* A second, much slower ambient layer -- two soft glows drifting very
+   gently, like distant stadium lights rather than a "second pattern".
+   Independent of the speed-lines above (own pseudo-element, own timing)
+   so the two never look synced/mechanical together. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 340px 220px at 20% 28%, rgba(255, 111, 160, 0.1), transparent 70%),
+    radial-gradient(ellipse 300px 220px at 82% 70%, rgba(111, 224, 255, 0.09), transparent 70%);
+  animation: bg-glow-drift 22s ease-in-out infinite;
+}
+
+@keyframes bg-glow-drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(3%, -4%); }
+}
+
 .page {
   width: 100%;
   max-width: var(--max-width);
@@ -169,6 +190,16 @@ h1, h2, h3 {
   );
   -webkit-mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
   mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
+  /* Gate "splits open" from the center on page load, as if the stall
+     bars just released -- a one-shot entrance, not a loop. Pure
+     clip-path/opacity on an already-absolute pseudo-element, so it adds
+     zero flow height. */
+  animation: gate-open 900ms var(--ease-snap) both;
+}
+
+@keyframes gate-open {
+  from { clip-path: inset(0 50% 0 50%); opacity: 0.3; }
+  to { clip-path: inset(0 0% 0 0%); opacity: 1; }
 }
 
 .badge {
@@ -258,6 +289,13 @@ h1, h2, h3 {
   border-radius: 999px;
 }
 
+/* Numeric value reads like a stat-board readout -- same size as the rest
+   of the pill (so pill height never changes), just weight/color lifted. */
+.meta-pill strong {
+  color: var(--gold);
+  font-weight: 800;
+}
+
 /* ---------- Buttons ---------- */
 .btn {
   appearance: none;
@@ -310,6 +348,21 @@ h1, h2, h3 {
 .btn-primary:hover {
   box-shadow: 0 12px 34px rgba(255, 111, 160, 0.5);
   transform: translateY(-1px);
+}
+
+/* "Engine idle" glow breathing between the button's two brand colors --
+   box-shadow isn't clipped by .btn-primary's own overflow:hidden (that
+   only clips the shine-sweep pseudo-element), so this layers on for free
+   with zero layout impact. Makes the CTA feel primed rather than static,
+   without fighting the hover/active states, which simply take over the
+   box-shadow property while they're active. */
+.btn-start {
+  animation: btn-start-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes btn-start-pulse {
+  0%, 100% { box-shadow: 0 10px 28px rgba(255, 111, 160, 0.38); }
+  50% { box-shadow: 0 10px 36px rgba(255, 200, 87, 0.55); }
 }
 
 .btn-secondary {
@@ -379,10 +432,38 @@ h1, h2, h3 {
   font-variant-numeric: tabular-nums;
 }
 
+.lane-track-wrap {
+  position: relative;
+}
+
 .lane-track {
   display: flex;
   gap: 3px;
   width: 100%;
+}
+
+/* Rides along the top of the track at the current-question position --
+   a literal checkpoint marker rather than a plain percentage bar. Lives
+   in .lane-track-wrap (a sibling of #lane-track, not inside it), so
+   quiz.js rebuilding the segments' innerHTML on question change never
+   touches or removes it. Absolutely positioned, so it adds zero flow
+   height even though the emoji glyph renders taller than the 6px track. */
+.lane-marker {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: left var(--fx-med) var(--ease-snap);
+  animation: lane-marker-trot 900ms ease-in-out infinite;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+}
+
+@keyframes lane-marker-trot {
+  0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+  50% { transform: translate(-50%, -56%) rotate(-8deg); }
 }
 
 .lane-seg {
@@ -516,6 +597,7 @@ h1, h2, h3 {
 }
 
 .answer-option .letter {
+  position: relative;
   flex-shrink: 0;
   width: 30px;
   height: 30px;
@@ -528,6 +610,26 @@ h1, h2, h3 {
   font-weight: 800;
   color: var(--text-dim);
   transition: background var(--fx-fast) ease, color var(--fx-fast) ease, transform var(--fx-fast) var(--ease-pop);
+}
+
+/* Locked-in ring ping -- fires once from the letter badge on every fresh
+   tap (see .fx-select-ring in quiz.js), independent of and layered under
+   whichever trait-specific fx plays on the same tap. Gold regardless of
+   lane color, so it always reads as the same "confirmed" cue. */
+.fx-select-ring .letter::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  opacity: 0.9;
+  animation: select-ring-pulse 480ms var(--ease-snap);
+  pointer-events: none;
+}
+
+@keyframes select-ring-pulse {
+  from { transform: scale(0.6); opacity: 0.9; }
+  to { transform: scale(2); opacity: 0; }
 }
 
 /* Each answer letter gets its own lane color -- like colored racing
@@ -993,6 +1095,15 @@ h1, h2, h3 {
   transition: width 0.7s var(--ease-snap);
 }
 
+/* A standout trait (>=60%) gets the gold treatment instead of the
+   default gradient -- color carries real information about the stat
+   sheet (which trait actually defines this match) rather than just
+   decorating the bar. */
+.trait-fill.is-standout {
+  background: linear-gradient(90deg, var(--gold), #ffdb8a);
+  box-shadow: 0 0 10px rgba(255, 200, 87, 0.55);
+}
+
 /* Why you match -- styled as a character dossier card with a small tab
    header strip rather than a plain rounded rectangle. */
 .match-card {
@@ -1114,6 +1225,15 @@ h1, h2, h3 {
 .other-match-row:hover {
   border-color: rgba(255, 255, 255, 0.2);
 }
+
+/* Podium accent for the two closest runners-up -- silver/bronze border
+   and rank-chip color, reusing the same row/chip structure rather than
+   adding new elements. Everyone past #3 stays the default look. */
+.other-match-row.is-podium-silver { border-left-color: #cbd5e1; }
+.other-match-row.is-podium-silver .other-match-rank { color: #cbd5e1; }
+
+.other-match-row.is-podium-bronze { border-left-color: #d99a5b; }
+.other-match-row.is-podium-bronze .other-match-rank { color: #d99a5b; }
 
 /* Roster rank chip -- #2, #3... reinforcing that this is a ranked
    lineup, not just a loose list of also-rans. */
@@ -1347,6 +1467,7 @@ h1, h2, h3 {
     scroll-behavior: auto !important;
   }
   body::before { display: none; }
+  body::after { display: none; }
 }
 
 /* ---------- Responsive ---------- */
