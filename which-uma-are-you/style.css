@@ -1295,6 +1295,25 @@ h1, h2, h3 {
 .chibi-peek-in.chibi-behind { opacity: 1; transform: scale(1); }
 .chibi-peek-out.chibi-behind { opacity: 0; transform: scale(0.7); }
 
+/* A small idle bob/wobble for the whole hold duration, not just the
+   entrance -- makes a peek read as alive rather than a static sticker
+   that happens to slide in and out. Uses the standalone translate/
+   rotate CSS properties (not `transform`) specifically so it layers on
+   top of whichever position class is animating `transform` for entrance/
+   exit, instead of fighting it for the same property. .chibi-peek-in
+   stays applied for the entire hold (only swapped for .chibi-peek-out
+   when exit begins), so this naturally covers the whole "on screen"
+   window. Reduced-motion is already covered by the blanket
+   animation-duration override further down, same as everything else. */
+.chibi-peek-in {
+  animation: chibi-idle-bob 1.7s ease-in-out infinite;
+}
+
+@keyframes chibi-idle-bob {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  50% { translate: 0 -5px; rotate: -2deg; }
+}
+
 /* Entrance "flavor" -- derived per-character from their dominant
    personality trait (see dominantFlavor() in chibi.js), layered onto
    whichever position class is already handling *where* the peek enters
