@@ -101,6 +101,20 @@ export function playResultsRevealSfx() {
 }
 
 /**
+ * Current mute state, for anything outside this module that plays its own
+ * audio (chibi.js's peek videos) and needs to respect the same toggle
+ * rather than running an independent mute state the user never sees.
+ */
+export function isMuted() {
+  return muted;
+}
+
+/** Same SFX volume convention, reused so a chibi peek's audio and the
+ *  quiz's own sound effects sit at one consistent, deliberately
+ *  moderate level rather than each picking their own. */
+export { VOLUME };
+
+/**
  * Wires a button up as the mute toggle: reflects current state, persists
  * changes, and updates its own label/icon. Call once per page.
  */

@@ -1,9 +1,10 @@
 /* ==========================================================================
    Which Uma Are You? — Chibi Companion System
 
-   Rare, randomized decorative character interruptions around the
-   quiz/results UI. Reads CHARACTERS for id + name + personalityProfile
-   only (image paths, alt text, entrance flavor) — never modifies it,
+   Frequent, randomized decorative character interruptions around the
+   quiz/results UI -- a running companion presence rather than a rare
+   surprise. Reads CHARACTERS for id + name + personalityProfile only
+   (image paths, alt text, entrance flavor) — never modifies it,
    matching.js, or any scoring data.
 
    Purely cosmetic: if a chibi asset is missing (most characters have
@@ -35,6 +36,7 @@
    ========================================================================== */
 
 import { CHARACTERS } from './characters.js';
+import { isMuted, VOLUME } from './audio.js';
 
 const prefersReducedMotion =
   typeof window.matchMedia === 'function' &&
@@ -69,13 +71,14 @@ const CHIBI_VIDEO_MAP = {
    page's scrollable area. */
 const EDGES = ['left', 'right', 'top', 'bottom', 'tl', 'tr', 'bl', 'br'];
 
-/* These are meant to read as rare surprises, not a constant companion --
-   deliberately low. (An earlier pass used a much higher 56% shared
-   chance; this supersedes that per direct feedback that they needed to
-   feel rare again.) */
-const POP_CHANCE = 0.1;
-const AMBIENT_MIN_MS = 9000;
-const AMBIENT_MAX_MS = 20000;
+/* Frequent, ambient companions rather than a rare surprise -- per direct
+   feedback that they no longer need to feel special/uncommon. A short
+   ambient tick interval combined with a coin-flip chance means a new
+   peek shows up roughly every several seconds on both the quiz and
+   results pages, plus on about half of all answer selections. */
+const POP_CHANCE = 0.6;
+const AMBIENT_MIN_MS = 2500;
+const AMBIENT_MAX_MS = 5000;
 /* "Some very brief, some stay a moment" -- randomized per spawn rather
    than one fixed duration. */
 const HOLD_MS_MIN = 850;
@@ -149,10 +152,17 @@ const CHROMA_KEY_HIGH = 60; /* at or above: fully opaque, left as-is */
 
 function createChromaKeyPeek(sources) {
   const video = document.createElement('video');
-  video.muted = true;
+  /* Plays with the audio the clip actually shipped with, at the same
+     volume and mute-toggle awareness as every other sound in the app --
+     see isMuted()/VOLUME in audio.js. If a browser blocks this
+     particular unmuted autoplay (most likely one of the ambient,
+     timer-triggered spawns rather than one fired right from a click),
+     the explicit .play() below catches that and falls back to muted
+     playback so the peek still animates instead of sitting frozen. */
+  video.muted = isMuted();
+  video.volume = VOLUME;
   video.playsInline = true;
   video.loop = true;
-  video.autoplay = true;
   video.style.cssText = 'position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;';
   /* webm/vp9 first, mp4/h264 as the fallback -- the browser picks
      whichever source it actually supports; the video only errors out
@@ -207,6 +217,19 @@ function createChromaKeyPeek(sources) {
       canvas.height = video.videoHeight;
       ctx = canvas.getContext('2d', { willReadFrequently: true });
       rafId = requestAnimationFrame(drawFrame);
+
+      const playPromise = video.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          /* Unmuted autoplay was blocked for this spawn -- retry muted so
+             the peek still plays visually rather than staying paused on
+             its first frame. A second rejection here would mean autoplay
+             itself is blocked entirely, which the same silent catch
+             pattern used throughout audio.js already treats as fine. */
+          video.muted = true;
+          video.play().catch(() => {});
+        });
+      }
     },
     { once: true }
   );
@@ -312,7 +335,7 @@ function spawnBehindCardPeek(character) {
   el.className = `chibi-peek chibi-behind chibi-flavor-${flavor}`;
   if (!isVideo) el.alt = '';
 
-  const size = 96;
+  const size = 124; /* must match .chibi-behind's width in style.css */
   const corners = ['tl', 'tr', 'bl', 'br'];
   const corner = corners[Math.floor(Math.random() * corners.length)];
   let top;

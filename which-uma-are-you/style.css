@@ -1398,7 +1398,7 @@ h1, h2, h3 {
 
 .chibi-peek {
   position: absolute;
-  width: 84px;
+  width: 108px;
   height: auto;
   opacity: 0;
   border-radius: 10px;
@@ -1444,7 +1444,7 @@ h1, h2, h3 {
 
 /* Pops up at a random spot anywhere in the viewport rather than sliding
    in from an edge -- just scales/fades in place. */
-.chibi-float { width: 76px; transform: scale(0.6); }
+.chibi-float { width: 98px; transform: scale(0.6); }
 .chibi-peek-in.chibi-float { opacity: 1; transform: scale(1); }
 .chibi-peek-out.chibi-float { opacity: 0; transform: scale(0.6); }
 
@@ -1452,7 +1452,7 @@ h1, h2, h3 {
    question/result card, so the card's own background covers whichever
    half overlaps it -- see spawnBehindCardPeek() in chibi.js. */
 .chibi-behind {
-  width: 96px;
+  width: 124px; /* must match the `size` constant in spawnBehindCardPeek() */
   z-index: 1;
   transform: scale(0.7);
 }
