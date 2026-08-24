@@ -6,6 +6,14 @@ import { QUESTIONS } from './questions.js';
 import { loadAnswers, saveAnswers } from './storage.js';
 import { initAudioToggle, playSelectionSfx } from './audio.js';
 import { initChibiLayer, maybeChibiReaction } from './chibi.js';
+import {
+  t,
+  tQuestion,
+  tAnswer,
+  initLangToggle,
+  applyStaticTranslations,
+  onLangChange
+} from './i18n.js';
 
 const prefersReducedMotion =
   typeof window.matchMedia === 'function' &&
@@ -93,8 +101,8 @@ function renderQuestion(opts = {}) {
   const q = QUESTIONS[currentIndex];
   const total = QUESTIONS.length;
 
-  questionIndexEl.textContent = `QUESTION ${currentIndex + 1}`;
-  questionTextEl.textContent = q.q;
+  questionIndexEl.textContent = `${t('questionLabel')} ${currentIndex + 1}`;
+  questionTextEl.textContent = tQuestion(currentIndex, q.q);
 
   bibCurrentEl.textContent = String(currentIndex + 1).padStart(2, '0');
   bibTotalEl.textContent = String(total).padStart(2, '0');
@@ -117,7 +125,7 @@ function renderQuestion(opts = {}) {
     letterSpan.textContent = letters[i];
 
     const textSpan = document.createElement('span');
-    textSpan.textContent = answer.text;
+    textSpan.textContent = tAnswer(currentIndex, i, answer.text);
 
     btn.appendChild(letterSpan);
     btn.appendChild(textSpan);
@@ -128,7 +136,7 @@ function renderQuestion(opts = {}) {
 
   prevBtn.disabled = currentIndex === 0;
   nextBtn.disabled = answers[currentIndex] === null;
-  nextBtn.textContent = currentIndex === total - 1 ? 'See Results →' : 'Next →';
+  nextBtn.textContent = t(currentIndex === total - 1 ? 'seeResults' : 'nextBtn');
 
   /* Card slide-in only when actually moving between questions (Prev/Next),
      not when re-rendering after picking an answer on the same question. */
@@ -219,4 +227,12 @@ buildLaneTrack();
 renderQuestion();
 
 initAudioToggle(document.getElementById('audio-toggle'));
+initLangToggle(document.getElementById('lang-toggle'));
+applyStaticTranslations();
 initChibiLayer('chibi-layer');
+
+/* Re-render the current question in the new language. Answers already
+   given live in storage and are keyed by index, so switching language
+   mid-quiz keeps every selection and the current position intact -- only
+   the displayed text changes. */
+onLangChange(() => renderQuestion());

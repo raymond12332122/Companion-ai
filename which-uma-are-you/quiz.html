@@ -6,12 +6,13 @@
   <title>Which Uma Are You? — Quiz</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body data-i18n-title="titleQuiz">
+  <button class="lang-toggle" id="lang-toggle" type="button">ES</button>
   <button class="audio-toggle" id="audio-toggle" type="button">🔊</button>
   <div class="chibi-layer" id="chibi-layer" aria-hidden="true"></div>
 
   <div class="page page-enter">
-    <a href="index.html" class="top-link">← Exit quiz</a>
+    <a href="index.html" class="top-link" data-i18n="exitQuiz">← Exit quiz</a>
 
     <div class="quiz-header">
       <div class="quiz-bib-row">
@@ -33,7 +34,7 @@
     </div>
 
     <div class="btn-row">
-      <button class="btn btn-secondary" id="prev-btn">← Previous</button>
+      <button class="btn btn-secondary" id="prev-btn" data-i18n="prevBtn">← Previous</button>
       <button class="btn btn-primary" id="next-btn" disabled>Next →</button>
     </div>
   </div>

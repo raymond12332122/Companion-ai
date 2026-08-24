@@ -10,6 +10,14 @@ import { loadAnswers, clearAnswers } from './storage.js';
 import { computeUserProfile, rankCharacters } from './matching.js';
 import { initAudioToggle, playResultsRevealSfx } from './audio.js';
 import { initChibiLayer } from './chibi.js';
+import {
+  t,
+  tTrait,
+  tChar,
+  initLangToggle,
+  applyStaticTranslations,
+  onLangChange
+} from './i18n.js';
 
 const prefersReducedMotion =
   typeof window.matchMedia === 'function' &&
@@ -99,8 +107,8 @@ export function renderResult(userProfile, matches) {
   const others = matches.slice(1, 1 + MAX_OTHER_MATCHES);
   const container = document.getElementById('result-content');
 
-  const traitRows = TRAITS.map((t) => {
-    const pct = Math.round(userProfile[t] * 100);
+  const traitRows = TRAITS.map((trait) => {
+    const pct = Math.round(userProfile[trait] * 100);
     /* Tiers the fill color by strength -- gold for a standout trait,
        the default cyan/pink gradient otherwise -- so color carries real
        information about the stat sheet rather than just decorating it. */
@@ -108,8 +116,8 @@ export function renderResult(userProfile, matches) {
     return `
       <div class="trait-row">
         <div class="trait-row-top">
-          <span class="trait-icon">${TRAIT_ICONS[t] || ''}</span>
-          <span class="trait-name">${t}</span>
+          <span class="trait-icon">${TRAIT_ICONS[trait] || ''}</span>
+          <span class="trait-name">${tTrait(trait)}</span>
           <span class="trait-pct">${pct}%</span>
         </div>
         <div class="trait-track">
@@ -136,10 +144,11 @@ export function renderResult(userProfile, matches) {
     })
     .join('');
 
-  const strengthItems = (best.character.strengths || [])
+  const bestChar = best.character;
+  const strengthItems = tChar(bestChar.id, 'strengths', bestChar.strengths || [])
     .map((s) => `<li>${s}</li>`)
     .join('');
-  const weaknessItems = (best.character.weaknesses || [])
+  const weaknessItems = tChar(bestChar.id, 'weaknesses', bestChar.weaknesses || [])
     .map((w) => `<li>${w}</li>`)
     .join('');
 
@@ -147,8 +156,8 @@ export function renderResult(userProfile, matches) {
 
   container.innerHTML = `
     <div class="result-hero">
-      <span class="badge">🏆 Your Match</span>
-      <div class="eyebrow">You Are</div>
+      <span class="badge">${t('yourMatch')}</span>
+      <div class="eyebrow">${t('youAre')}</div>
 
       <div class="portrait-frame">
         <div class="portrait-checker-ring" aria-hidden="true"></div>
@@ -157,28 +166,28 @@ export function renderResult(userProfile, matches) {
         ${prefersReducedMotion ? '' : PARTICLE_SPANS}
       </div>
 
-      <div class="character-name">${best.character.name}</div>
-      <div class="character-tagline">${best.character.tagline}</div>
+      <div class="character-name">${bestChar.name}</div>
+      <div class="character-tagline">${tChar(bestChar.id, 'tagline', bestChar.tagline)}</div>
 
       <div class="match-badge">
         <span class="match-percent" id="match-percent">${prefersReducedMotion ? bestPct : 0}%</span>
-        <span class="match-percent-label">Match</span>
+        <span class="match-percent-label">${t('matchLabel')}</span>
       </div>
     </div>
 
-    <div class="section-title">Racing Stats</div>
+    <div class="section-title">${t('sectionStats')}</div>
     <div class="trait-bars">
       ${traitRows}
     </div>
 
-    <div class="section-title">Race Analysis</div>
+    <div class="section-title">${t('sectionAnalysis')}</div>
     <div class="match-card">
-      <p class="match-summary">${best.character.summary}</p>
+      <p class="match-summary">${tChar(bestChar.id, 'summary', bestChar.summary)}</p>
 
       ${
         strengthItems
           ? `<div class="trait-list-group">
-               <div class="trait-list-title is-strength">Strengths</div>
+               <div class="trait-list-title is-strength">${t('strengths')}</div>
                <ul class="trait-list is-strength">${strengthItems}</ul>
              </div>`
           : ''
@@ -187,16 +196,16 @@ export function renderResult(userProfile, matches) {
       ${
         weaknessItems
           ? `<div class="trait-list-group">
-               <div class="trait-list-title is-weakness">Weaknesses</div>
+               <div class="trait-list-title is-weakness">${t('weaknesses')}</div>
                <ul class="trait-list is-weakness">${weaknessItems}</ul>
              </div>`
           : ''
       }
 
-      ${best.character.raceStrategy ? `<p class="race-strategy">${best.character.raceStrategy}</p>` : ''}
+      ${bestChar.raceStrategy ? `<p class="race-strategy">${tChar(bestChar.id, 'raceStrategy', bestChar.raceStrategy)}</p>` : ''}
     </div>
 
-    <div class="section-title">The Rest Of The Field</div>
+    <div class="section-title">${t('sectionField')}</div>
     <div class="other-matches">
       ${otherRows}
     </div>
@@ -234,14 +243,14 @@ function renderEmptyState() {
   const container = document.getElementById('result-content');
   container.innerHTML = `
     <div class="result-hero">
-      <span class="badge">⚠️ No Answers Found</span>
-      <h2 style="margin-top:16px;">Take the quiz first!</h2>
+      <span class="badge">${t('emptyBadge')}</span>
+      <h2 style="margin-top:16px;">${t('emptyTitle')}</h2>
       <p style="color:var(--text-dim); margin-top:10px;">
-        We couldn't find any saved answers. Start the quiz to get your result.
+        ${t('emptyBody')}
       </p>
     </div>
   `;
-  document.getElementById('retake-btn').textContent = 'Start Quiz';
+  document.getElementById('retake-btn').textContent = t('emptyBtn');
 }
 
 /* --- Main --------------------------------------------------- */
@@ -251,11 +260,21 @@ const isComplete = answers.every((a) => a !== null && a !== undefined);
 
 if (!isComplete) {
   renderEmptyState();
+  onLangChange(() => renderEmptyState());
 } else {
   const userProfile = computeUserProfile(answers);
   const matches = rankCharacters(userProfile, CHARACTERS);
   renderResult(userProfile, matches);
   initChibiLayer('chibi-layer'); /* only around an actual result card */
+
+  /* Re-render the same already-computed match in the new language.
+     computeUserProfile/rankCharacters are deliberately NOT re-run: the
+     result must be identical across languages, and re-rendering from the
+     same objects makes that structural rather than a promise. */
+  onLangChange(() => {
+    renderResult(userProfile, matches);
+    document.getElementById('retake-btn').textContent = t('retakeBtn');
+  });
 }
 
 document.getElementById('retake-btn').addEventListener('click', () => {
@@ -263,4 +282,11 @@ document.getElementById('retake-btn').addEventListener('click', () => {
   window.location.href = 'quiz.html';
 });
 
+/* The retake button label is owned by JS (renderEmptyState swaps it to
+   "Start Quiz"), so it's set here rather than via a data-i18n attribute
+   that applyStaticTranslations would fight over. */
+if (isComplete) document.getElementById('retake-btn').textContent = t('retakeBtn');
+
 initAudioToggle(document.getElementById('audio-toggle'));
+initLangToggle(document.getElementById('lang-toggle'));
+applyStaticTranslations();

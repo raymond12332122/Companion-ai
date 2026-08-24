@@ -1117,7 +1117,11 @@ h1, h2, h3 {
 }
 
 .match-card::before {
-  content: "PROFILE";
+  /* Set from JS (see applyStaticTranslations in i18n.js) so this
+     CSS-injected label can be translated without JS having to rewrite a
+     stylesheet rule. The literal is the English fallback for the case
+     where the property was never set. */
+  content: var(--label-profile, "PROFILE");
   position: absolute;
   top: 0;
   left: 18px;
@@ -1336,6 +1340,46 @@ h1, h2, h3 {
 .audio-toggle:active { transform: scale(0.94); }
 
 .audio-toggle:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* ---------- Language toggle ---------- */
+/* Sits immediately left of the audio toggle, sharing its pill/disc
+   treatment so the two read as one control cluster rather than two
+   unrelated buttons. position:fixed like its neighbour, so it adds zero
+   flow height and cannot affect the quiz page's tight vertical budget.
+   Text rather than a flag: flags mean countries, not languages. */
+.lang-toggle {
+  position: fixed;
+  top: 14px;
+  right: 64px;
+  z-index: 30;
+  height: 42px;
+  min-width: 42px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg-2);
+  color: var(--text);
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--fx-fast) ease, transform 120ms var(--ease-snap);
+}
+
+.lang-toggle:hover { background: #262a52; }
+.lang-toggle:active { transform: scale(0.94); }
+
+.lang-toggle:focus-visible {
   outline: 3px solid var(--cyan);
   outline-offset: 2px;
 }

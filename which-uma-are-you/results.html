@@ -6,12 +6,13 @@
   <title>Which Uma Are You? — Your Result</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body data-i18n-title="titleResults">
+  <button class="lang-toggle" id="lang-toggle" type="button">ES</button>
   <button class="audio-toggle" id="audio-toggle" type="button">🔊</button>
   <div class="chibi-layer" id="chibi-layer" aria-hidden="true"></div>
 
   <div class="page page-enter">
-    <a href="index.html" class="top-link">← Back to home</a>
+    <a href="index.html" class="top-link" data-i18n="backHome">← Back to home</a>
 
     <div id="result-content">
       <!-- populated by JS -->
@@ -21,7 +22,7 @@
       <button class="btn btn-primary" id="retake-btn">Take Quiz Again</button>
     </div>
 
-    <p class="footer-note">
+    <p class="footer-note" data-i18n="resultsFooter">
       Results are a fun approximation based on your answers, not an official
       or scientific measurement.
     </p>
