@@ -17,15 +17,21 @@
 
    Draws from the full current roster generically (by id), not a
    hardcoded character list, matching how the rest of this project
-   already treats the roster as open-ended data. Four characters
+   already treats the roster as open-ended data. Two characters
    additionally have a short looping video-clip peek instead of a static
    image (see CHIBI_VIDEO_MAP), each trimmed/cropped from the real source
-   videos in assets/videos/chibis/ (never generated/CSS-only content):
-   gold-ship and oguri-cap get their own dance clips, and special-week +
-   silence-suzuka share the one clip they're both actually in (cropped
-   to the moment they're walking side by side) since that's the asset as
-   provided -- everyone else without a listed clip falls back to the
-   plain static-image path, same as before.
+   videos in assets/videos/chibis/ (never generated/CSS-only content),
+   with their original audio kept intact: gold-ship and oguri-cap each
+   get their own dance clip -- everyone else without a listed clip falls
+   back to the plain static-image path, same as before. (The Special
+   Week / Silence Suzuka walking clip was removed per direct request.)
+
+   oguri-cap is further special-cased: instead of the normal random
+   timed peek, it spawns once via spawnDraggableCompanion() as a
+   persistent companion that the user can drag anywhere on screen, and
+   that stays until the quiz page itself unloads ("there until the test
+   is done") -- see that function for how it differs from the shared
+   spawn/hold/exit path every other peek uses.
 
    Entrance "flavor" (how snappy/bouncy/gentle the pop-in feels) is
    derived from each character's own existing personalityProfile —
@@ -54,14 +60,6 @@ const CHIBI_VIDEO_MAP = {
   'oguri-cap': {
     webm: 'assets/videos/chibis/oguricap-peek.webm',
     mp4: 'assets/videos/chibis/oguricap-peek.mp4'
-  },
-  'special-week': {
-    webm: 'assets/videos/chibis/walking-peek.webm',
-    mp4: 'assets/videos/chibis/walking-peek.mp4'
-  },
-  'silence-suzuka': {
-    webm: 'assets/videos/chibis/walking-peek.webm',
-    mp4: 'assets/videos/chibis/walking-peek.mp4'
   }
 };
 
@@ -106,9 +104,17 @@ const TRAIT_FLAVORS = {
 let layerEl = null;
 let active = 0;
 let ambientTimer = null;
+/* The character currently pinned as a persistent draggable companion (if
+   any) -- excluded from the random ambient/reaction pool below so it
+   can't also show up a second time as an ordinary transient peek while
+   it's already standing on screen. */
+let pinnedCharacterId = null;
 
 function randomCharacter() {
-  return CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
+  const pool = pinnedCharacterId
+    ? CHARACTERS.filter((c) => c.id !== pinnedCharacterId)
+    : CHARACTERS;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function dominantFlavor(character) {
@@ -367,6 +373,101 @@ function spawnBehindCardPeek(character) {
 
   page.appendChild(el);
   if (isVideo) page.appendChild(readyEl);
+}
+
+/* Pointer Events cover mouse + touch + pen in one code path. Position is
+   tracked in plain left/top pixels against .chibi-layer's own box (fixed,
+   inset:0 -- i.e. the viewport), clamped so the companion can never be
+   dragged fully off-screen and become unreachable. pointer-events stays
+   'auto' only on this one element (set by the caller), unlike every
+   other peek's pointer-events:none, since being draggable is the whole
+   point here -- the user, not the layer, decides whether it's in the way. */
+function makeDraggable(el) {
+  el.style.touchAction = 'none';
+  el.style.cursor = 'grab';
+  let dragging = false;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  el.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    el.setPointerCapture(e.pointerId);
+    const rect = el.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    el.classList.add('chibi-dragging');
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const maxLeft = window.innerWidth - el.offsetWidth;
+    const maxTop = window.innerHeight - el.offsetHeight;
+    const left = Math.max(0, Math.min(e.clientX - offsetX, maxLeft));
+    const top = Math.max(0, Math.min(e.clientY - offsetY, maxTop));
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+  });
+
+  function endDrag() {
+    dragging = false;
+    el.classList.remove('chibi-dragging');
+  }
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointercancel', endDrag);
+}
+
+/**
+ * Spawns one character as a persistent, user-draggable companion instead
+ * of the usual random timed peek -- it enters once, never auto-exits, and
+ * stays wherever the user drags it for the rest of the current page's
+ * life. "Until the test is done" falls out naturally from the app's
+ * page-per-view structure: quiz.html -> results.html is a real
+ * navigation, so the companion is simply gone once that happens, with no
+ * extra cleanup code needed. Call once (e.g. from quiz.js, right after
+ * initChibiLayer()) -- calling it again would just spawn a second copy.
+ */
+export function spawnDraggableCompanion(characterId) {
+  if (!layerEl || prefersReducedMotion) return;
+  const character = CHARACTERS.find((c) => c.id === characterId);
+  if (!character) return;
+
+  pinnedCharacterId = characterId;
+  const { el, isVideo, readyEl, cleanup } = createPeekMedia(character);
+  const flavor = dominantFlavor(character);
+
+  el.setAttribute('aria-hidden', 'true');
+  el.className = `chibi-peek chibi-companion chibi-flavor-${flavor}`;
+  el.style.pointerEvents = 'auto';
+  if (!isVideo) el.alt = '';
+
+  /* Starting spot: tucked above the Prev/Next row on the right, computed
+     from its real position rather than a guessed pixel value, so it
+     starts clear of the buttons at every viewport size -- falls back to
+     a fixed corner if that row isn't found for some reason. Still fully
+     draggable from there afterward. */
+  const btnRow = document.querySelector('.btn-row');
+  const size = 108; /* matches .chibi-peek's width */
+  const left = Math.max(8, window.innerWidth - size - 12);
+  const top = btnRow
+    ? Math.max(80, btnRow.getBoundingClientRect().top - size - 12)
+    : 100;
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+
+  readyEl.addEventListener('error', () => { cleanup?.(); el.remove(); pinnedCharacterId = null; }, { once: true });
+  readyEl.addEventListener(
+    isVideo ? 'loadeddata' : 'load',
+    () => {
+      requestAnimationFrame(() => el.classList.add('chibi-peek-in'));
+      makeDraggable(el);
+    },
+    { once: true }
+  );
+
+  layerEl.appendChild(el);
+  if (isVideo) layerEl.appendChild(readyEl);
 }
 
 function spawnPeek() {

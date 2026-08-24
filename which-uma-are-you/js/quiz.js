@@ -5,7 +5,7 @@
 import { QUESTIONS } from './questions.js';
 import { loadAnswers, saveAnswers } from './storage.js';
 import { initAudioToggle, playSelectionSfx } from './audio.js';
-import { initChibiLayer, maybeChibiReaction } from './chibi.js';
+import { initChibiLayer, maybeChibiReaction, spawnDraggableCompanion } from './chibi.js';
 import {
   t,
   tQuestion,
@@ -230,6 +230,11 @@ initAudioToggle(document.getElementById('audio-toggle'));
 initLangToggle(document.getElementById('lang-toggle'));
 applyStaticTranslations();
 initChibiLayer('chibi-layer');
+/* Oguri Cap stands in as a persistent, draggable quiz companion rather
+   than a rare timed peek -- see spawnDraggableCompanion() in chibi.js
+   for how it differs from the other characters' random peeks and why it
+   naturally disappears once the quiz page navigates to results.html. */
+spawnDraggableCompanion('oguri-cap');
 
 /* Re-render the current question in the new language. Answers already
    given live in storage and are keyed by index, so switching language

@@ -1459,6 +1459,30 @@ h1, h2, h3 {
 .chibi-peek-in.chibi-behind { opacity: 1; transform: scale(1); }
 .chibi-peek-out.chibi-behind { opacity: 0; transform: scale(0.7); }
 
+/* The one persistent, user-draggable peek (currently oguri-cap only --
+   see spawnDraggableCompanion() in chibi.js). Lives in .chibi-layer like
+   edge/float peeks, but never gets a .chibi-peek-out exit class -- it has
+   no scheduled removal, so only the entrance state is defined here.
+   pointer-events is switched back to 'auto' inline by JS on this element
+   specifically (the base .chibi-peek rule below still keeps every other
+   peek at 'none'), and a higher z-index keeps it grabbable above the
+   question card while dragged over it. */
+.chibi-companion {
+  transform: scale(0.6);
+  z-index: 7;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+}
+.chibi-peek-in.chibi-companion { opacity: 1; transform: scale(1); }
+
+/* While actively dragging: no easing lag on left/top (already instant,
+   since transition only ever targeted opacity/transform) and no idle
+   bob, so the art tracks the pointer/finger exactly instead of trailing
+   a few px behind it. */
+.chibi-dragging {
+  animation: none;
+  cursor: grabbing;
+}
+
 /* A small idle bob/wobble for the whole hold duration, not just the
    entrance -- makes a peek read as alive rather than a static sticker
    that happens to slide in and out. Uses the standalone translate/
