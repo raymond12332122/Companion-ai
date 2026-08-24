@@ -1313,6 +1313,37 @@ h1, h2, h3 {
   line-height: 1.5;
 }
 
+/* Secondary link out to the separate "Give me an idea" companion app --
+   deliberately quiet (pill, not a filled button) so it never competes
+   with the page's real CTA (Start the Race / Take Quiz Again). Sits
+   between that CTA and the footer note on both the pages that have one. */
+.idea-link {
+  display: block;
+  width: fit-content;
+  margin: 14px auto 0;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-bg-2);
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background var(--fx-fast) ease, color var(--fx-fast) ease, border-color var(--fx-fast) ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.idea-link:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.24);
+  background: #262a52;
+}
+
+.idea-link:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
 /* ---------- Audio toggle ---------- */
 .audio-toggle {
   position: fixed;

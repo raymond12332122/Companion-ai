@@ -39,6 +39,7 @@ const EN = {
   metaTime: '<strong>~4</strong> min',
   metaChars: '<strong>26</strong> Characters',
   startBtn: 'Start the Race →',
+  ideaLink: '💡 Give me an idea',
   homeFooter:
     'Fan-made project. Original characters, names, and personality interpretations only — no official artwork or copyrighted material used.',
 
@@ -59,6 +60,7 @@ const EN = {
   strengths: 'Strengths',
   weaknesses: 'Weaknesses',
   retakeBtn: 'Take Quiz Again',
+  ideaLinkResults: '💡 Got an idea for the quiz?',
   resultsFooter:
     'Results are a fun approximation based on your answers, not an official or scientific measurement.',
 

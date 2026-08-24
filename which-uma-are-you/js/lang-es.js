@@ -32,6 +32,7 @@ export const ES = {
     metaTime: '<strong>~4</strong> min',
     metaChars: '<strong>26</strong> Personajes',
     startBtn: 'Comenzar la Carrera →',
+    ideaLink: '💡 Dame una idea',
     homeFooter:
       'Proyecto hecho por fans. Solo personajes, nombres e interpretaciones de personalidad originales — no se usa arte oficial ni material con derechos de autor.',
 
@@ -54,6 +55,7 @@ export const ES = {
     strengths: 'Fortalezas',
     weaknesses: 'Debilidades',
     retakeBtn: 'Repetir el Test',
+    ideaLinkResults: '💡 ¿Tienes una idea para el test?',
     resultsFooter:
       'Los resultados son una aproximación divertida basada en tus respuestas, no una medición oficial ni científica.',
 
