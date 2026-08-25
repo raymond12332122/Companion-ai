@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <title>Which Uma Are You? — Personality Quiz</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-i18n-title="titleHome">
+  <button class="lang-toggle" id="lang-toggle" type="button">ES</button>
+  <button class="audio-toggle" id="audio-toggle" type="button">🔊</button>
+
+  <div class="page page-enter">
+    <div class="rail-strip"></div>
+
+    <div class="home-hero">
+      <span class="badge" data-i18n="heroBadge">🏇 Fan Personality Quiz</span>
+      <div class="hero-emoji-track">🐎💨</div>
+      <h1 class="brand-title" data-i18n="heroTitle" data-i18n-html>Which Uma<br />Are You?</h1>
+      <p data-i18n="heroBlurb">
+        Answer 25 quick questions about how you race, train, and treat your
+        rivals — we'll match you to the racehorse girl whose heart runs
+        closest to yours.
+      </p>
+
+      <div class="meta-row">
+        <span class="meta-pill" data-i18n="metaQuestions" data-i18n-html><strong>25</strong> Questions</span>
+        <span class="meta-pill" data-i18n="metaTime" data-i18n-html><strong>~4</strong> min</span>
+        <span class="meta-pill" data-i18n="metaChars" data-i18n-html><strong>26</strong> Characters</span>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-start" id="start-btn" data-i18n="startBtn">Start the Race →</button>
+
+    <a
+      class="idea-link"
+      href="https://uma-idea-box.lovable.app"
+      target="_blank"
+      rel="noopener noreferrer"
+      data-i18n="ideaLink"
+    >💡 Give me an idea</a>
+
+    <p class="footer-note" data-i18n="homeFooter">
+      Fan-made project. Original characters, names, and personality
+      interpretations only — no official artwork or copyrighted material used.
+    </p>
+  </div>
+
+  <script type="module">
+    import { initAudioToggle } from './js/audio.js';
+    import { initLangToggle, applyStaticTranslations } from './js/i18n.js';
+
+    document.getElementById('start-btn').addEventListener('click', function () {
+      window.location.href = 'quiz.html';
+    });
+
+    initAudioToggle(document.getElementById('audio-toggle'));
+    initLangToggle(document.getElementById('lang-toggle'));
+    applyStaticTranslations();
+  </script>
+</body>
+</html>

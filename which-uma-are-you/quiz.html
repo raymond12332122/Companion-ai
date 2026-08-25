@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <title>Which Uma Are You? — Quiz</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-i18n-title="titleQuiz">
+  <button class="lang-toggle" id="lang-toggle" type="button">ES</button>
+  <button class="audio-toggle" id="audio-toggle" type="button">🔊</button>
+  <div class="chibi-layer" id="chibi-layer" aria-hidden="true"></div>
+
+  <div class="page page-enter">
+    <a href="index.html" class="top-link" data-i18n="exitQuiz">← Exit quiz</a>
+
+    <div class="quiz-header">
+      <div class="quiz-bib-row">
+        <div class="quiz-bib">
+          <span class="bib-current" id="bib-current">01</span><span class="bib-sep"> / </span><span class="bib-total" id="bib-total">25</span>
+        </div>
+        <div class="quiz-pct" id="quiz-pct">4%</div>
+      </div>
+      <div class="lane-track-wrap">
+        <div class="lane-track" id="lane-track" aria-hidden="true"></div>
+        <div class="lane-marker" id="lane-marker" aria-hidden="true">🏇</div>
+      </div>
+    </div>
+
+    <div class="question-card" id="question-card">
+      <div class="question-index" id="question-index">QUESTION 1</div>
+      <div class="question-text" id="question-text"></div>
+      <div class="answers-list" id="answers-list"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="prev-btn" data-i18n="prevBtn">← Previous</button>
+      <button class="btn btn-primary" id="next-btn" disabled>Next →</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/quiz.js"></script>
+</body>
+</html>

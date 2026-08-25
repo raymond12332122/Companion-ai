@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "skillOverrides": {
+    "napkin": "on",
+    "caveman": "on",
+    "caveman-commit": "on",
+    "caveman-compress": "on",
+    "caveman-discover": "on",
+    "caveman-evidence-review": "on",
+    "caveman-explore": "on",
+    "caveman-help": "on",
+    "caveman-learn": "on",
+    "caveman-manage": "on",
+    "caveman-optimize": "on",
+    "caveman-review": "on",
+    "caveman-setup": "on",
+    "caveman-stats": "on",
+    "cavecrew": "on",
+    "agent-development": "on",
+    "claude-opus-4-5-migration": "on",
+    "command-development": "on",
+    "frontend-design": "on",
+    "hook-development": "on",
+    "investigate-first": "on",
+    "lean-build": "on",
+    "mcp-integration": "on",
+    "migration": "on",
+    "plugin-settings": "on",
+    "plugin-structure": "on",
+    "safe-refactor": "on",
+    "skill-development": "on",
+    "surgical-patch": "on",
+    "verify-and-stop": "on",
+    "writing-hookify-rules": "on"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '✨ Claude Code skills activated: napkin (memory), caveman suite (optimization), frontend-design, and investigation tools ready to use.'",
+            "statusMessage": "Initializing skills..."
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep"
+    ]
+  }
+}

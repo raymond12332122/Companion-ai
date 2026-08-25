@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <title>Which Uma Are You? — Your Result</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-i18n-title="titleResults">
+  <button class="lang-toggle" id="lang-toggle" type="button">ES</button>
+  <button class="audio-toggle" id="audio-toggle" type="button">🔊</button>
+  <div class="chibi-layer" id="chibi-layer" aria-hidden="true"></div>
+
+  <div class="page page-enter">
+    <a href="index.html" class="top-link" data-i18n="backHome">← Back to home</a>
+
+    <div id="result-content">
+      <!-- populated by JS -->
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="retake-btn">Take Quiz Again</button>
+    </div>
+
+    <a
+      class="idea-link"
+      href="https://uma-idea-box.lovable.app"
+      target="_blank"
+      rel="noopener noreferrer"
+      data-i18n="ideaLinkResults"
+    >💡 Got an idea for the quiz?</a>
+
+    <p class="footer-note" data-i18n="resultsFooter">
+      Results are a fun approximation based on your answers, not an official
+      or scientific measurement.
+    </p>
+  </div>
+
+  <script type="module" src="js/results.js"></script>
+</body>
+</html>

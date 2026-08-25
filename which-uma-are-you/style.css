@@ -1,0 +1,1617 @@
+/* ==========================================================================
+   Which Uma Are You? — Shared Styles (V0.6.1 visual overhaul)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap');
+
+:root {
+  --bg-void: #0a0c1f;
+  --bg-1: #12152e;
+  --bg-2: #1e2350;
+  --track-line: rgba(255, 255, 255, 0.07);
+  --card-bg: #191c3c;
+  --card-bg-2: #22265084;
+  --card-border: rgba(255, 255, 255, 0.08);
+  --text: #f7f6ff;
+  --text-dim: #b7b6d9;
+  --text-faint: #8b89ad;
+  --gold: #ffc857;
+  --pink: #ff6fa0;
+  --cyan: #6fe0ff;
+  --violet: #a78bfa;
+  --ink: #1a0d16;
+  /* Racing accent colors -- used sparingly as per-answer-letter identity
+     (A/B/C/D) and gauge/roster accents, not as a second palette. */
+  --lane-a: var(--pink);
+  --lane-b: var(--gold);
+  --lane-c: var(--cyan);
+  --lane-d: var(--violet);
+  --radius-lg: 26px;
+  --radius-md: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 20px 50px rgba(255, 111, 160, 0.18);
+  --max-width: 480px;
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-snap: cubic-bezier(0.65, 0, 0.35, 1);
+  --fx-fast: 180ms;
+  --fx-med: 420ms;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 12% -5%, rgba(167, 139, 250, 0.24) 0%, transparent 42%),
+    radial-gradient(circle at 88% 8%, rgba(255, 111, 160, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 90% 100%, rgba(111, 224, 255, 0.14) 0%, transparent 45%),
+    repeating-linear-gradient(
+      0deg,
+      var(--bg-1) 0px,
+      var(--bg-1) 78px,
+      var(--track-line) 78px,
+      var(--track-line) 82px
+    ),
+    linear-gradient(180deg, var(--bg-1), var(--bg-void) 85%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Ambient diagonal speed-lines. Decorative only, low opacity, disabled
+   under reduced motion below. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: repeating-linear-gradient(
+    115deg,
+    transparent 0px,
+    transparent 140px,
+    rgba(255, 255, 255, 0.025) 140px,
+    rgba(255, 255, 255, 0.025) 142px
+  );
+  animation: speed-drift 14s linear infinite;
+}
+
+@keyframes speed-drift {
+  from { background-position: 0 0; }
+  to { background-position: -600px 0; }
+}
+
+/* A second, much slower ambient layer -- two soft glows drifting very
+   gently, like distant stadium lights rather than a "second pattern".
+   Independent of the speed-lines above (own pseudo-element, own timing)
+   so the two never look synced/mechanical together. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 340px 220px at 20% 28%, rgba(255, 111, 160, 0.1), transparent 70%),
+    radial-gradient(ellipse 300px 220px at 82% 70%, rgba(111, 224, 255, 0.09), transparent 70%);
+  animation: bg-glow-drift 22s ease-in-out infinite;
+}
+
+@keyframes bg-glow-drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(3%, -4%); }
+}
+
+.page {
+  width: 100%;
+  max-width: var(--max-width);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 0 44px;
+  position: relative;
+  z-index: 1;
+}
+
+h1, h2, h3 {
+  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  margin: 0;
+  text-wrap: balance;
+}
+
+/* ---------- Track rail decoration ---------- */
+/* An actual checkered-flag strip (not a generic 2-color stripe) --
+   alternating light/dark squares via two conic-gradients tiled across
+   the row, capped with the racing-pink/gold rail underneath so it still
+   reads as a finish-line ribbon at a glance. */
+.rail-strip {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(90deg, var(--pink), var(--gold));
+  opacity: 0.92;
+  margin-bottom: 22px;
+  flex-shrink: 0;
+}
+
+.rail-strip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    conic-gradient(from 90deg at 25% 25%, transparent 90deg, rgba(10, 12, 31, 0.85) 0deg 180deg, transparent 0deg),
+    conic-gradient(from 90deg at 75% 75%, transparent 90deg, rgba(10, 12, 31, 0.85) 0deg 180deg, transparent 0deg);
+  background-size: 20px 20px;
+  mix-blend-mode: multiply;
+}
+
+/* ---------- Landing page ---------- */
+.home-hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 16px;
+  padding: 20px 4px;
+  position: relative;
+}
+
+/* Starting-gate bars behind the hero content -- the vertical stall
+   dividers a race starts from. Purely decorative background, absolute
+   within .home-hero (which is already flex:1 in the page's column), so
+   it adds zero height of its own and can't affect the CTA's position. */
+.home-hero::before {
+  content: "";
+  position: absolute;
+  inset: -8px 0;
+  z-index: -1;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0px,
+    rgba(255, 255, 255, 0.05) 5px,
+    transparent 5px,
+    transparent 46px
+  );
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
+  /* Gate "splits open" from the center on page load, as if the stall
+     bars just released -- a one-shot entrance, not a loop. Pure
+     clip-path/opacity on an already-absolute pseudo-element, so it adds
+     zero flow height. */
+  animation: gate-open 900ms var(--ease-snap) both;
+}
+
+@keyframes gate-open {
+  from { clip-path: inset(0 50% 0 50%); opacity: 0.3; }
+  to { clip-path: inset(0 0% 0 0%); opacity: 1; }
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--card-bg-2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 0 rgba(255, 200, 87, 0.6);
+  animation: badge-pulse 1.8s ease-out infinite;
+}
+
+@keyframes badge-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 200, 87, 0.55); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 200, 87, 0); }
+  100% { box-shadow: 0 0 0 6px rgba(255, 200, 87, 0); }
+}
+
+.hero-emoji-track {
+  font-size: 2.8rem;
+  line-height: 1;
+  animation: gallop 1.3s ease-in-out infinite;
+}
+
+@keyframes gallop {
+  0%, 100% { transform: translateY(0) scaleX(1); }
+  50% { transform: translateY(-7px) scaleX(1.05); }
+}
+
+.brand-title {
+  font-size: clamp(2.3rem, 10vw, 3.1rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  background: linear-gradient(100deg, var(--pink) 0%, var(--gold) 55%, var(--violet) 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: title-sheen 6s ease-in-out infinite;
+  text-transform: uppercase;
+  filter: drop-shadow(0 6px 0 rgba(10, 12, 31, 0.55));
+}
+
+@keyframes title-sheen {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+
+.home-hero p {
+  color: var(--text-dim);
+  font-size: 1rem;
+  line-height: 1.55;
+  max-width: 34ch;
+}
+
+.meta-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.meta-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--card-bg-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+/* Numeric value reads like a stat-board readout -- same size as the rest
+   of the pill (so pill height never changes), just weight/color lifted. */
+.meta-pill strong {
+  color: var(--gold);
+  font-weight: 800;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  border-radius: var(--radius-md);
+  padding: 17px 24px;
+  transition: transform var(--fx-fast) var(--ease-snap), box-shadow var(--fx-fast) ease, opacity var(--fx-fast) ease;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 52px;
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  position: relative;
+  background: linear-gradient(90deg, var(--pink), #ff9166);
+  color: var(--ink);
+  box-shadow: 0 10px 28px rgba(255, 111, 160, 0.38);
+  width: 100%;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.55) 48%, transparent 66%);
+  background-size: 240% 100%;
+  background-position: 120% 0;
+  transition: background-position var(--fx-med) var(--ease-snap);
+  pointer-events: none;
+}
+
+.btn-primary:hover::before,
+.btn-primary:focus-visible::before {
+  background-position: -20% 0;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 12px 34px rgba(255, 111, 160, 0.5);
+  transform: translateY(-1px);
+}
+
+/* "Engine idle" glow breathing between the button's two brand colors --
+   box-shadow isn't clipped by .btn-primary's own overflow:hidden (that
+   only clips the shine-sweep pseudo-element), so this layers on for free
+   with zero layout impact. Makes the CTA feel primed rather than static,
+   without fighting the hover/active states, which simply take over the
+   box-shadow property while they're active. */
+.btn-start {
+  animation: btn-start-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes btn-start-pulse {
+  0%, 100% { box-shadow: 0 10px 28px rgba(255, 111, 160, 0.38); }
+  50% { box-shadow: 0 10px 36px rgba(255, 200, 87, 0.55); }
+}
+
+.btn-secondary {
+  background: var(--card-bg-2);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-row {
+  display: flex;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 22px;
+}
+
+.btn-row .btn {
+  flex: 1;
+}
+
+/* ---------- Quiz page ---------- */
+.quiz-header {
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+
+.quiz-bib-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.quiz-bib {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiz-bib .bib-current {
+  font-size: 1.3rem;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--gold), #ffdb8a);
+  padding: 1px 8px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(255, 200, 87, 0.35);
+}
+
+.quiz-bib .bib-sep,
+.quiz-bib .bib-total {
+  color: var(--text-faint);
+}
+
+.quiz-pct {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.lane-track-wrap {
+  position: relative;
+}
+
+.lane-track {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+}
+
+/* Rides along the top of the track at the current-question position --
+   a literal checkpoint marker rather than a plain percentage bar. Lives
+   in .lane-track-wrap (a sibling of #lane-track, not inside it), so
+   quiz.js rebuilding the segments' innerHTML on question change never
+   touches or removes it. Absolutely positioned, so it adds zero flow
+   height even though the emoji glyph renders taller than the 6px track. */
+.lane-marker {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: left var(--fx-med) var(--ease-snap);
+  animation: lane-marker-trot 900ms ease-in-out infinite;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+}
+
+@keyframes lane-marker-trot {
+  0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+  50% { transform: translate(-50%, -56%) rotate(-8deg); }
+}
+
+.lane-seg {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+  position: relative;
+}
+
+/* A thin checkpoint tick on every 5th lane segment -- a small nod to
+   race-distance markers, at zero height cost (an inset box-shadow on an
+   already-existing element rather than a new one). */
+.lane-seg:nth-child(5n)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+}
+
+.lane-seg-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cyan), var(--pink));
+  transition: width var(--fx-med) var(--ease-snap);
+}
+
+.question-card {
+  background: linear-gradient(165deg, var(--card-bg), #151833);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: 26px 22px;
+  box-shadow: var(--shadow);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+  z-index: 2; /* above .chibi-behind (z-index:1) so its own opaque
+                 background covers the half of a "behind" peek that
+                 overlaps the card -- see spawnBehindCardPeek() in
+                 chibi.js */
+}
+
+/* Race-bib corner tag -- a small pinned-on badge feel for the card
+   itself, echoing the header's bib number. Absolute and outside the
+   card's own padding box, so it adds zero flow height. */
+.question-card::before {
+  content: "🏁";
+  position: absolute;
+  top: -12px;
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--pink), #ff9166);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  box-shadow: 0 4px 12px rgba(255, 111, 160, 0.45), 0 0 0 3px var(--bg-void);
+  z-index: 1;
+}
+
+.question-card.q-enter {
+  animation: question-in var(--fx-med) var(--ease-snap);
+}
+
+@keyframes question-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.question-index {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.question-text {
+  font-size: 1.32rem;
+  font-weight: 700;
+  line-height: 1.32;
+}
+
+.answers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.answer-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: var(--card-bg-2);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-left: 4px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 15px 16px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--fx-fast) ease, background var(--fx-fast) ease, transform 120ms var(--ease-snap);
+  -webkit-tap-highlight-color: transparent;
+  min-height: 56px;
+  position: relative;
+  overflow: hidden;
+}
+
+.answer-option:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: #262a52;
+}
+
+.answer-option:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.answer-option:active {
+  transform: scale(0.97);
+}
+
+.answer-option .letter {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--text-dim);
+  transition: background var(--fx-fast) ease, color var(--fx-fast) ease, transform var(--fx-fast) var(--ease-pop);
+}
+
+/* Locked-in ring ping -- fires once from the letter badge on every fresh
+   tap (see .fx-select-ring in quiz.js), independent of and layered under
+   whichever trait-specific fx plays on the same tap. Gold regardless of
+   lane color, so it always reads as the same "confirmed" cue. */
+.fx-select-ring .letter::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  opacity: 0.9;
+  animation: select-ring-pulse 480ms var(--ease-snap);
+  pointer-events: none;
+}
+
+@keyframes select-ring-pulse {
+  from { transform: scale(0.6); opacity: 0.9; }
+  to { transform: scale(2); opacity: 0; }
+}
+
+/* Each answer letter gets its own lane color -- like colored racing
+   silks -- so the four options read as distinct lanes at a glance
+   instead of four identical gray circles. Purely a color/identity cue;
+   .selected below still overrides with a stronger treatment. */
+.answer-option:nth-child(1) .letter { background: color-mix(in srgb, var(--lane-a) 30%, transparent); color: var(--lane-a); }
+.answer-option:nth-child(2) .letter { background: color-mix(in srgb, var(--lane-b) 30%, transparent); color: var(--lane-b); }
+.answer-option:nth-child(3) .letter { background: color-mix(in srgb, var(--lane-c) 30%, transparent); color: var(--lane-c); }
+.answer-option:nth-child(4) .letter { background: color-mix(in srgb, var(--lane-d) 30%, transparent); color: var(--lane-d); }
+
+.answer-option:nth-child(1) { border-left-color: color-mix(in srgb, var(--lane-a) 55%, transparent); }
+.answer-option:nth-child(2) { border-left-color: color-mix(in srgb, var(--lane-b) 55%, transparent); }
+.answer-option:nth-child(3) { border-left-color: color-mix(in srgb, var(--lane-c) 55%, transparent); }
+.answer-option:nth-child(4) { border-left-color: color-mix(in srgb, var(--lane-d) 55%, transparent); }
+
+.answer-option.selected {
+  border-color: var(--pink);
+  border-left-color: var(--gold);
+  background: linear-gradient(90deg, rgba(255, 111, 160, 0.2), rgba(255, 145, 102, 0.1));
+}
+
+.answer-option.selected .letter {
+  background: var(--pink);
+  color: var(--ink);
+  transform: scale(1.1);
+}
+
+/* ---- Trait feedback effects (one fires per tap, on the tapped card) ---- */
+.fx-determination { animation: fx-determination var(--fx-fast) var(--ease-snap); }
+@keyframes fx-determination {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.035) translateY(-2px); box-shadow: 0 8px 18px rgba(255, 111, 160, 0.35); }
+  100% { transform: scale(1); }
+}
+
+.fx-discipline { animation: fx-discipline 160ms linear; }
+@keyframes fx-discipline {
+  0% { transform: scale(1); border-color: rgba(255, 255, 255, 0.1); }
+  55% { transform: scale(0.965); border-color: var(--cyan); }
+  100% { transform: scale(1); }
+}
+
+.fx-confidence { position: relative; }
+.fx-confidence::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.65) 50%, transparent 65%);
+  background-size: 220% 100%;
+  animation: fx-shine var(--fx-med) ease-out;
+  pointer-events: none;
+}
+@keyframes fx-shine {
+  from { background-position: 130% 0; }
+  to { background-position: -30% 0; }
+}
+
+.fx-competitiveness { position: relative; }
+.fx-competitiveness::before,
+.fx-competitiveness::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--gold);
+  animation: fx-gate 260ms var(--ease-snap) forwards;
+  pointer-events: none;
+}
+.fx-competitiveness::before { left: 0; }
+.fx-competitiveness::after { right: 0; }
+@keyframes fx-gate {
+  from { opacity: 1; transform: scaleY(1); }
+  to { opacity: 0; transform: scaleY(0.2); }
+}
+
+.fx-chaos { animation: fx-chaos 320ms var(--ease-snap); }
+@keyframes fx-chaos {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(-2px, 1px) rotate(-1.2deg); }
+  50% { transform: translate(2px, -1px) rotate(1.2deg); }
+  75% { transform: translate(-1px, 1px) rotate(-0.6deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.fx-kindness { position: relative; }
+.fx-kindness::after {
+  content: "✦ ✧ ✦";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  font-size: 0.75rem;
+  color: var(--pink);
+  letter-spacing: 4px;
+  opacity: 0;
+  transform: translateY(0);
+  animation: fx-sparkle var(--fx-med) ease-out;
+  pointer-events: none;
+}
+@keyframes fx-sparkle {
+  0% { opacity: 0; transform: translateY(4px) scale(0.8); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px) scale(1.05); }
+}
+
+.fx-optimism { position: relative; }
+.fx-optimism::after {
+  content: "✨";
+  position: absolute;
+  right: 16px;
+  top: 55%;
+  font-size: 1rem;
+  opacity: 0;
+  animation: fx-burst var(--fx-med) var(--ease-pop);
+  pointer-events: none;
+}
+@keyframes fx-burst {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  35% { opacity: 1; transform: translateY(-8px) scale(1.15); }
+  100% { opacity: 0; transform: translateY(-20px) scale(1); }
+}
+
+/* ---------- Results page ---------- */
+.result-hero {
+  text-align: center;
+  padding: 8px 4px 4px;
+}
+
+.result-hero .eyebrow {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.result-hero .badge {
+  margin-bottom: 14px;
+}
+
+.portrait-frame {
+  width: 168px;
+  height: 168px;
+  /* The breakout portrait figure (see .portrait-figure) can overflow up
+     to 45% past this frame's own top edge -- extra top margin here
+     keeps a tall character's head clear of the badge/eyebrow above
+     instead of overlapping it. */
+  margin: 56px auto 20px;
+  position: relative;
+}
+
+.character-portrait {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--ink);
+  border: 4px solid rgba(255, 255, 255, 0.25);
+  box-shadow: var(--shadow-glow);
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--cyan), var(--pink));
+}
+
+/* Fallback initials, painted first so a successfully-loaded image
+   (painted after, in DOM order) naturally covers them. If the image
+   is missing or fails to load, its onerror hides it and these show
+   through instead. */
+.avatar-initials {
+  position: relative;
+  z-index: 0;
+}
+
+.character-portrait.has-image .avatar-initials {
+  opacity: 0;
+}
+
+.other-match-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+/* The hero portrait breaks out of the circular badge instead of being
+   cropped inside it -- the badge (rings, gradient, gold sweep) stays as
+   a decorative disc behind the character, who stands taller than it and
+   overflows the top. .portrait-frame must stay overflow:visible (it is,
+   by default) for this to actually spill outside the circle. Anchored
+   to the bottom of an oversized box so varying art proportions still
+   plant the character's feet near the badge instead of floating. */
+.portrait-figure {
+  position: absolute;
+  left: 50%;
+  bottom: 4%;
+  transform: translateX(-50%);
+  width: 145%;
+  height: 145%;
+  z-index: 3;
+  pointer-events: none;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45));
+}
+
+.portrait-figure img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+}
+
+.portrait-frame::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.22);
+  animation: spin 14s linear infinite;
+}
+
+/* A thin checkered ring just outside the dashed one -- the finish line
+   drawn as a circle around the winner. A real element (rather than a
+   third pseudo-element) since .portrait-frame's ::before/::after are
+   already the dashed ring and the pulse-ring animation. */
+.portrait-checker-ring {
+  position: absolute;
+  inset: -13px;
+  border-radius: 50%;
+  padding: 3px;
+  background: repeating-conic-gradient(#fff 0deg 22.5deg, var(--ink) 22.5deg 45deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.portrait-frame::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(255, 200, 87, 0.55);
+  animation: portrait-ring 1.8s var(--ease-snap) 1;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes portrait-ring {
+  0% { box-shadow: 0 0 0 0 rgba(255, 200, 87, 0.55); }
+  70% { box-shadow: 0 0 0 18px rgba(255, 200, 87, 0); }
+  100% { box-shadow: 0 0 0 18px rgba(255, 200, 87, 0); }
+}
+
+/* Finish-line sweep -- the signature reveal moment, plays once on
+   results entrance. Gold ribbon breaks across the portrait. */
+.finish-sweep {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.finish-sweep::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -30%;
+  width: 26%;
+  background: linear-gradient(90deg, transparent, var(--gold) 45%, #fff 50%, var(--gold) 55%, transparent);
+  transform: skewX(-18deg);
+  animation: finish-line-sweep 900ms var(--ease-snap) 1;
+}
+
+@keyframes finish-line-sweep {
+  from { left: -30%; opacity: 1; }
+  to { left: 120%; opacity: 1; }
+}
+
+/* Subtle spark particles for the results reveal -- 6 fixed positions
+   around the portrait ring, staggered so they don't all pop at once.
+   Inserted only when !prefersReducedMotion (see results.js); the global
+   reduced-motion override below would neutralize them anyway, but not
+   inserting them at all keeps the DOM cleaner in that case. */
+.spark {
+  --spark-angle: 0deg;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  opacity: 0;
+  pointer-events: none;
+  animation: spark-pop 900ms var(--ease-pop) both;
+}
+
+.spark:nth-child(1) { --spark-angle: 15deg; animation-delay: 0ms; }
+.spark:nth-child(2) { --spark-angle: 85deg; background: var(--cyan); animation-delay: 200ms; }
+.spark:nth-child(3) { --spark-angle: 150deg; background: var(--pink); animation-delay: 60ms; }
+.spark:nth-child(4) { --spark-angle: 210deg; animation-delay: 140ms; }
+.spark:nth-child(5) { --spark-angle: 270deg; background: var(--cyan); animation-delay: 40ms; }
+.spark:nth-child(6) { --spark-angle: 330deg; background: var(--pink); animation-delay: 180ms; }
+
+@keyframes spark-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(-90px) scale(0.4);
+  }
+  35% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--spark-angle)) translateY(-130px) scale(1);
+  }
+}
+
+.character-name {
+  font-size: 2.1rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+  background: linear-gradient(100deg, var(--text) 40%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.character-tagline {
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  font-style: italic;
+  margin-bottom: 16px;
+}
+
+.match-percent {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.match-percent-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.match-badge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 6px 0 24px;
+  padding: 14px 30px;
+  background: var(--card-bg-2);
+  border: 1px solid rgba(255, 200, 87, 0.4);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px rgba(255, 200, 87, 0.12), 0 12px 30px rgba(255, 200, 87, 0.15);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+
+.section-title::before {
+  content: "";
+  width: 14px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--pink), var(--gold));
+  flex-shrink: 0;
+}
+
+.trait-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.trait-row {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.trait-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.trait-row-top .trait-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.trait-row-top .trait-name {
+  flex: 1;
+}
+
+.trait-row-top .trait-pct {
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+  font-family: 'Baloo 2', sans-serif;
+}
+
+/* "Stat gauge" track -- a segmented tick scale under a glowing fill,
+   like a game stat bar rather than a plain progress bar. */
+.trait-track {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(10% - 1px),
+    rgba(255, 255, 255, 0.12) calc(10% - 1px),
+    rgba(255, 255, 255, 0.12) 10%
+  );
+  overflow: hidden;
+  position: relative;
+}
+
+.trait-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cyan), var(--pink));
+  box-shadow: 0 0 10px rgba(255, 111, 160, 0.5);
+  width: 0%;
+  transition: width 0.7s var(--ease-snap);
+}
+
+/* A standout trait (>=60%) gets the gold treatment instead of the
+   default gradient -- color carries real information about the stat
+   sheet (which trait actually defines this match) rather than just
+   decorating the bar. */
+.trait-fill.is-standout {
+  background: linear-gradient(90deg, var(--gold), #ffdb8a);
+  box-shadow: 0 0 10px rgba(255, 200, 87, 0.55);
+}
+
+/* Why you match -- styled as a character dossier card with a small tab
+   header strip rather than a plain rounded rectangle. */
+.match-card {
+  background: linear-gradient(165deg, var(--card-bg), #151833);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: 22px 18px 6px;
+  margin-bottom: 28px;
+  position: relative;
+  overflow: hidden;
+}
+
+.match-card::before {
+  /* Set from JS (see applyStaticTranslations in i18n.js) so this
+     CSS-injected label can be translated without JS having to rewrite a
+     stylesheet rule. The literal is the English fallback for the case
+     where the property was never set. */
+  content: var(--label-profile, "PROFILE");
+  position: absolute;
+  top: 0;
+  left: 18px;
+  padding: 3px 10px;
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  background: linear-gradient(90deg, var(--gold), #ffdb8a);
+  border-radius: 0 0 6px 6px;
+}
+
+.match-summary {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 0 0 18px;
+}
+
+.trait-list-group {
+  margin-bottom: 16px;
+}
+
+.trait-list-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.trait-list-title.is-strength { color: var(--cyan); }
+.trait-list-title.is-weakness { color: var(--pink); }
+
+.trait-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trait-list li {
+  font-size: 0.88rem;
+  color: var(--text);
+  padding-left: 18px;
+  position: relative;
+  line-height: 1.4;
+}
+
+.trait-list.is-strength li::before {
+  content: "▲";
+  position: absolute;
+  left: 0;
+  color: var(--cyan);
+  font-size: 0.6rem;
+  top: 5px;
+}
+
+.trait-list.is-weakness li::before {
+  content: "▼";
+  position: absolute;
+  left: 0;
+  color: var(--pink);
+  font-size: 0.6rem;
+  top: 5px;
+}
+
+.race-strategy {
+  border-top: 1px solid var(--card-border);
+  padding: 14px 0 16px;
+  font-size: 0.88rem;
+  font-style: italic;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.race-strategy::before {
+  content: "🏁 ";
+  font-style: normal;
+}
+
+.other-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.other-match-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card-bg-2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 3px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  transition: border-color var(--fx-fast) ease;
+}
+
+.other-match-row:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Podium accent for the two closest runners-up -- silver/bronze border
+   and rank-chip color, reusing the same row/chip structure rather than
+   adding new elements. Everyone past #3 stays the default look. */
+.other-match-row.is-podium-silver { border-left-color: #cbd5e1; }
+.other-match-row.is-podium-silver .other-match-rank { color: #cbd5e1; }
+
+.other-match-row.is-podium-bronze { border-left-color: #d99a5b; }
+.other-match-row.is-podium-bronze .other-match-rank { color: #d99a5b; }
+
+/* Roster rank chip -- #2, #3... reinforcing that this is a ranked
+   lineup, not just a loose list of also-rans. */
+.other-match-rank {
+  flex-shrink: 0;
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--text-faint);
+  width: 20px;
+  text-align: center;
+}
+
+.other-match-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--cyan), var(--pink));
+}
+
+.other-match-name {
+  flex: 1;
+  font-weight: 700;
+}
+
+.other-match-pct {
+  font-weight: 800;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Utility ---------- */
+.top-link {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+}
+
+.top-link:hover { color: var(--text); }
+
+.top-link:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.footer-note {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  opacity: 0.6;
+  margin-top: 24px;
+  line-height: 1.5;
+}
+
+/* Secondary link out to the separate "Give me an idea" companion app --
+   deliberately quiet (pill, not a filled button) so it never competes
+   with the page's real CTA (Start the Race / Take Quiz Again). Sits
+   between that CTA and the footer note on both the pages that have one. */
+.idea-link {
+  display: block;
+  width: fit-content;
+  margin: 14px auto 0;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-bg-2);
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background var(--fx-fast) ease, color var(--fx-fast) ease, border-color var(--fx-fast) ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.idea-link:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.24);
+  background: #262a52;
+}
+
+.idea-link:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* ---------- Audio toggle ---------- */
+.audio-toggle {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 30;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg-2);
+  color: var(--text);
+  font-size: 1.15rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--fx-fast) ease, transform 120ms var(--ease-snap);
+}
+
+.audio-toggle:hover { background: #262a52; }
+.audio-toggle:active { transform: scale(0.94); }
+
+.audio-toggle:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* ---------- Language toggle ---------- */
+/* Sits immediately left of the audio toggle, sharing its pill/disc
+   treatment so the two read as one control cluster rather than two
+   unrelated buttons. position:fixed like its neighbour, so it adds zero
+   flow height and cannot affect the quiz page's tight vertical budget.
+   Text rather than a flag: flags mean countries, not languages. */
+.lang-toggle {
+  position: fixed;
+  top: 14px;
+  right: 64px;
+  z-index: 30;
+  height: 42px;
+  min-width: 42px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg-2);
+  color: var(--text);
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--fx-fast) ease, transform 120ms var(--ease-snap);
+}
+
+.lang-toggle:hover { background: #262a52; }
+.lang-toggle:active { transform: scale(0.94); }
+
+.lang-toggle:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* ---------- Chibi companions ---------- */
+/* Fixed overlay covering the viewport; individual peeks are positioned
+   absolutely within it. pointer-events:none throughout so a chibi can
+   never intercept a tap meant for the quiz/results UI underneath it. */
+.chibi-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  overflow: hidden;
+}
+
+.chibi-peek {
+  position: absolute;
+  width: 108px;
+  height: auto;
+  opacity: 0;
+  border-radius: 10px;
+  pointer-events: none; /* belt-and-suspenders: .chibi-behind lives in .page,
+    not the pointer-events:none .chibi-layer, so this can't rely on the
+    parent alone -- a chibi must never be able to intercept a tap meant
+    for the quiz underneath it, regardless of which container it's in. */
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
+  transition: opacity 380ms ease, transform 380ms var(--ease-pop);
+}
+
+.chibi-edge-left { left: -20px; transform: translateX(-100%); }
+.chibi-edge-right { right: -20px; transform: translateX(100%); }
+.chibi-edge-top { top: -20px; transform: translateY(-100%); }
+.chibi-edge-bottom { bottom: -20px; transform: translateY(100%); }
+
+.chibi-peek-in.chibi-edge-left { opacity: 1; transform: translateX(-6px); }
+.chibi-peek-in.chibi-edge-right { opacity: 1; transform: translateX(6px); }
+.chibi-peek-in.chibi-edge-top { opacity: 1; transform: translateY(6px); }
+.chibi-peek-in.chibi-edge-bottom { opacity: 1; transform: translateY(-6px); }
+
+.chibi-peek-out.chibi-edge-left { opacity: 0; transform: translateX(-100%); }
+.chibi-peek-out.chibi-edge-right { opacity: 0; transform: translateX(100%); }
+.chibi-peek-out.chibi-edge-top { opacity: 0; transform: translateY(-100%); }
+.chibi-peek-out.chibi-edge-bottom { opacity: 0; transform: translateY(100%); }
+
+/* Corner entrances -- "another appropriate screen edge" beyond the 4
+   cardinal ones, diagonal pop-in/out from each screen corner. */
+.chibi-corner-tl { top: -20px; left: -20px; transform: translate(-100%, -100%); }
+.chibi-corner-tr { top: -20px; right: -20px; transform: translate(100%, -100%); }
+.chibi-corner-bl { bottom: -20px; left: -20px; transform: translate(-100%, 100%); }
+.chibi-corner-br { bottom: -20px; right: -20px; transform: translate(100%, 100%); }
+
+.chibi-peek-in.chibi-corner-tl { opacity: 1; transform: translate(-6px, -6px); }
+.chibi-peek-in.chibi-corner-tr { opacity: 1; transform: translate(6px, -6px); }
+.chibi-peek-in.chibi-corner-bl { opacity: 1; transform: translate(-6px, 6px); }
+.chibi-peek-in.chibi-corner-br { opacity: 1; transform: translate(6px, 6px); }
+
+.chibi-peek-out.chibi-corner-tl { opacity: 0; transform: translate(-100%, -100%); }
+.chibi-peek-out.chibi-corner-tr { opacity: 0; transform: translate(100%, -100%); }
+.chibi-peek-out.chibi-corner-bl { opacity: 0; transform: translate(-100%, 100%); }
+.chibi-peek-out.chibi-corner-br { opacity: 0; transform: translate(100%, 100%); }
+
+/* Pops up at a random spot anywhere in the viewport rather than sliding
+   in from an edge -- just scales/fades in place. */
+.chibi-float { width: 98px; transform: scale(0.6); }
+.chibi-peek-in.chibi-float { opacity: 1; transform: scale(1); }
+.chibi-peek-out.chibi-float { opacity: 0; transform: scale(0.6); }
+
+/* Appended into .page (not .chibi-layer) at a lower z-index than the
+   question/result card, so the card's own background covers whichever
+   half overlaps it -- see spawnBehindCardPeek() in chibi.js. */
+.chibi-behind {
+  width: 124px; /* must match the `size` constant in spawnBehindCardPeek() */
+  z-index: 1;
+  transform: scale(0.7);
+}
+.chibi-peek-in.chibi-behind { opacity: 1; transform: scale(1); }
+.chibi-peek-out.chibi-behind { opacity: 0; transform: scale(0.7); }
+
+/* The one persistent, user-draggable peek (currently oguri-cap only --
+   see spawnDraggableCompanion() in chibi.js). Lives in .chibi-layer like
+   edge/float peeks, but never gets a .chibi-peek-out exit class -- it has
+   no scheduled removal, so only the entrance state is defined here.
+   pointer-events is switched back to 'auto' inline by JS on this element
+   specifically (the base .chibi-peek rule below still keeps every other
+   peek at 'none'), and a higher z-index keeps it grabbable above the
+   question card while dragged over it. */
+.chibi-companion {
+  transform: scale(0.6);
+  z-index: 7;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
+}
+.chibi-peek-in.chibi-companion { opacity: 1; transform: scale(1); }
+
+/* While actively dragging: no easing lag on left/top (already instant,
+   since transition only ever targeted opacity/transform) and no idle
+   bob, so the art tracks the pointer/finger exactly instead of trailing
+   a few px behind it. */
+.chibi-dragging {
+  animation: none;
+  cursor: grabbing;
+}
+
+/* A small idle bob/wobble for the whole hold duration, not just the
+   entrance -- makes a peek read as alive rather than a static sticker
+   that happens to slide in and out. Uses the standalone translate/
+   rotate CSS properties (not `transform`) specifically so it layers on
+   top of whichever position class is animating `transform` for entrance/
+   exit, instead of fighting it for the same property. .chibi-peek-in
+   stays applied for the entire hold (only swapped for .chibi-peek-out
+   when exit begins), so this naturally covers the whole "on screen"
+   window. Reduced-motion is already covered by the blanket
+   animation-duration override further down, same as everything else. */
+.chibi-peek-in {
+  animation: chibi-idle-bob 1.7s ease-in-out infinite;
+}
+
+@keyframes chibi-idle-bob {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  50% { translate: 0 -5px; rotate: -2deg; }
+}
+
+/* Entrance "flavor" -- derived per-character from their dominant
+   personality trait (see dominantFlavor() in chibi.js), layered onto
+   whichever position class is already handling *where* the peek enters
+   from. Each just retunes the shared opacity/transform transition's
+   duration and easing so different characters feel distinct without
+   needing a second transform system to fight the positional one. */
+.chibi-flavor-charge { transition-duration: 260ms; transition-timing-function: cubic-bezier(0.3, 0, 0.15, 1); }
+.chibi-flavor-gentle { transition-duration: 620ms; transition-timing-function: ease-out; }
+.chibi-flavor-strut { transition-duration: 420ms; transition-timing-function: var(--ease-pop); }
+.chibi-flavor-dash { transition-duration: 180ms; transition-timing-function: cubic-bezier(0.5, 0, 0.2, 1); }
+.chibi-flavor-precise { transition-duration: 220ms; transition-timing-function: linear; }
+.chibi-flavor-chaotic { transition-duration: 380ms; transition-timing-function: var(--ease-pop); }
+.chibi-flavor-bounce { transition-duration: 500ms; transition-timing-function: var(--ease-pop); }
+
+/* ---------- Page-level entrance/transition ---------- */
+.page-enter {
+  animation: page-fade-in var(--fx-med) ease-out;
+}
+
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  body::before { display: none; }
+  body::after { display: none; }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 359px) {
+  .brand-title { font-size: 1.85rem; }
+  .question-text { font-size: 1.18rem; }
+  .portrait-frame { width: 136px; height: 136px; }
+  .character-portrait { font-size: 2.4rem; }
+  .match-percent { font-size: 2rem; }
+}
+
+@media (min-width: 480px) {
+  .brand-title { font-size: 2.9rem; }
+}
+
+@media (min-width: 700px) {
+  :root { --max-width: 640px; }
+
+  .question-card {
+    padding: 34px 32px;
+    justify-content: center;
+    flex: 0 1 auto;
+  }
+  .question-text { font-size: 1.5rem; }
+
+  /* On mobile the card+buttons intentionally fill the viewport (btn-row's
+     margin-top:auto pins Prev/Next to the bottom edge, which is the right
+     touch-target position on a phone). At desktop widths that same rule
+     leaves a large dead gap between a content-sized card and the viewport
+     floor, so keep the button row directly under the card instead. */
+  .btn-row { margin-top: 24px; }
+
+  .trait-bars {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 24px;
+  }
+
+  .other-matches {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
+@media (min-width: 960px) {
+  :root { --max-width: 760px; }
+}
